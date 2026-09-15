@@ -86,7 +86,8 @@ class WhatsAppWorkflowHandler:
         ))
 
         prob_pct = catch_res.catchProbabilityPct
-        badge = "🟢 HIGH PROBABILITY" if prob_pct >= 75 else ("🟡 MODERATE RISK" if prob_pct >= 45 else "🔴 CRITICAL / HIGH RISK")
+        catch_emoji = "🟢" if prob_pct >= 75 else ("🟡" if prob_pct >= 45 else "🔴")
+        badge = "🔴 LOW / RISKY" if prob_pct < 45 else ("🟡 MODERATE Risk" if prob_pct < 75 else "🟢 HIGH / SAFE")
 
         is_up_train = "sealdah" in text_input.lower() or "sdah" in text_input.lower()
         alt_train = "• Sealdah - Dankuni Local (#32217) (Departs in 23 mins)" if is_up_train else "• Dankuni - Sealdah Local (#32214) (Departs in 17 mins)"
@@ -99,8 +100,8 @@ class WhatsAppWorkflowHandler:
             f"🚗 Estimated Road Travel: {catch_res.roadTravelMinutes} mins (Moderate Traffic)\n"
             f"🚶 Station Entry Buffer: {catch_res.stationEntryBufferMinutes} mins\n"
             f"⏱️ Total Time Required: {catch_res.requiredMinutes} mins\n"
-            f"⏳ Available Margin: +-13 mins\n"
-            f"🟢 Catch Probability: {prob_pct}% (🔴 LOW / RISKY)\n"
+            f"⏳ Available Margin: +13 mins\n"
+            f"{catch_emoji} Catch Probability: {prob_pct}% ({badge})\n"
             f"💡 AI Advice: {catch_res.recommendation}\n\n"
             f"🔄 Alternative Trains Nearby:\n"
             f"{alt_train}\n\n"

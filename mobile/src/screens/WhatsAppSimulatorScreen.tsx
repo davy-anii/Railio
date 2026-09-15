@@ -14,7 +14,20 @@ export const WhatsAppSimulatorScreen: React.FC = () => {
     {
       id: '2',
       sender: 'bot',
-      text: '🚆 *RailIo Passenger WhatsApp Intelligence*\n\n🎯 *"Can I Catch My Train?" AI Calculator*\n\n*Train 32216 (Dankuni - Sealdah Local)*\n\n• Scheduled Departure: *06:34*\n• Predicted Arrival at Sealdah: *07:21 (+3 min)*\n• Road Travel Time: *5 min*\n• Traffic: *Moderate (BT Road)*\n• Station Entry Buffer: *4 min*\n• Total Required: *9 min*\n• Available Time: *14 min*\n\n🟢 *92% Catch Probability*: High chance of catching your train.\n_Recommendation: Board at Platform 2, Coach C3 (Lowest crowd density)._',
+      text:
+        `🎯 Railio AI "Can I Catch My Train?" Result\n` +
+        `📍 Your Location: 22.7105475, 88.386681\n` +
+        `🚆 Target Train: Dankuni - Sealdah Local (#32216)\n` +
+        `⏰ Predicted Departure: 06:34 (+3 min delay)\n` +
+        `🚗 Estimated Road Travel: 5 mins (Moderate Traffic)\n` +
+        `🚶 Station Entry Buffer: 4 mins\n` +
+        `⏱️ Total Time Required: 9 mins\n` +
+        `⏳ Available Margin: +14 mins\n` +
+        `🟢 Catch Probability: 92% (🟢 HIGH / SAFE)\n` +
+        `💡 AI Advice: High probability you can catch your train. Board at Platform 2, Coach C3/C9 (Lowest crowd density).\n\n` +
+        `🔄 Alternative Trains Nearby:\n` +
+        `• Sealdah - Dankuni Local (#32217) (Departs in 23 mins)\n\n` +
+        `_Reply Hi to check another train._`,
       time: '06:30',
     },
   ]);
@@ -35,18 +48,19 @@ export const WhatsAppSimulatorScreen: React.FC = () => {
         `3️⃣ *Suburban Local Timetable* (Reply "3" or "Suburban")`;
     } else if (textLower === '1' || textLower.includes('catch') || textLower.includes('can i catch')) {
       botReplyText =
-        `🎯 *RailIo AI "Can I Catch My Train?" Result*\n` +
-        `━━━━━━━━━━━━━━━━━━━━━━\n` +
-        `Status: *🟢 HIGH PROBABILITY* (92% Catch Rate)\n\n` +
-        `🚆 *Train*: 32216 - Dankuni to Sealdah Local\n` +
-        `⏰ *Predicted Departure*: 06:34 AM\n` +
-        `🚗 *Est. Road Travel Time*: 5 mins (3.2 km)\n` +
-        `🚦 *Traffic Condition*: Moderate Urban Traffic (BT Road)\n` +
-        `🌧️ *Weather Intelligence*: Heavy Rain Slowdown & Wet Road Buffer (+3 min)\n` +
-        `🚶 *Station Entry Buffer*: 4 mins\n` +
-        `⏱️ *Total Time Required*: 9 mins\n` +
-        `⏳ *Time Available Before Departure*: 14 mins\n\n` +
-        `💡 *Recommendation*: High probability you can catch your train. Board at Platform 2, Coach C3/C9 (Lowest crowd density).`;
+        `🎯 Railio AI "Can I Catch My Train?" Result\n` +
+        `📍 Your Location: 22.7105475, 88.386681\n` +
+        `🚆 Target Train: Dankuni - Sealdah Local (#32216)\n` +
+        `⏰ Predicted Departure: 06:34 (+3 min delay)\n` +
+        `🚗 Estimated Road Travel: 5 mins (Moderate Traffic)\n` +
+        `🚶 Station Entry Buffer: 4 mins\n` +
+        `⏱️ Total Time Required: 9 mins\n` +
+        `⏳ Available Margin: +14 mins\n` +
+        `🟢 Catch Probability: 92% (🟢 HIGH / SAFE)\n` +
+        `💡 AI Advice: High probability you can catch your train. Board at Platform 2, Coach C3/C9 (Lowest crowd density).\n\n` +
+        `🔄 Alternative Trains Nearby:\n` +
+        `• Sealdah - Dankuni Local (#32217) (Departs in 23 mins)\n\n` +
+        `_Reply Hi to check another train._`;
     } else if (textLower === '2' || textLower.includes('status') || textLower.includes('live')) {
       botReplyText =
         `🚆 *RailIo Live Train Status*\n` +
@@ -86,7 +100,7 @@ export const WhatsAppSimulatorScreen: React.FC = () => {
           <Text style={{ fontSize: 18 }}>🚆</Text>
         </View>
         <View style={{ flex: 1 }}>
-          <Text style={styles.headerName}>RailIo AI Passenger Sathi</Text>
+          <Text style={styles.headerName}>RailIo AI Passenger Sathi (+1 555 678 3260)</Text>
           <Text style={styles.headerStatus}>Verified Indian Railways Passenger Bot</Text>
         </View>
       </View>
