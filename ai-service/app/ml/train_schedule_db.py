@@ -259,6 +259,75 @@ class TrainScheduleDB:
             "fogVisibilityKm": 10.0
         }
 
+    def search_trains_with_segment_info(
+        self,
+        from_code: str,
+        to_code: str,
+        dep_time_from_hhmm: Optional[str] = None,
+        dep_time_to_hhmm: Optional[str] = None,
+    ) -> List[Dict[str, Any]]:
+        fc = from_code.upper().strip()
+        tc = to_code.upper().strip()
+        results = []
+
+        for t in self._all_trains:
+            stops = t.get("stops", [])
+            f_stop = None
+            t_stop = None
+            f_seq = -1
+            t_seq = -1
+
+            if stops:
+                for s in stops:
+                    sc = s.get("code", "").upper()
+                    if sc == fc and f_seq == -1:
+                        f_stop = s
+                        f_seq = s.get("sequence", 0)
+                    if sc == tc:
+                        if f_seq != -1 and s.get("sequence", 0) > f_seq:
+                            t_stop = s
+                            t_seq = s.get("sequence", 0)
+                        elif t_seq == -1:
+                            t_stop = s
+                            t_seq = s.get("sequence", 0)
+
+            src_code = t.get("source", "").upper()
+            dest_code = t.get("destination", "").upper()
+            if not f_stop and src_code == fc:
+                f_stop = {"code": src_code, "dep": t.get("departureTime", "10:00"), "arr": t.get("departureTime", "10:00"), "km": 0, "sequence": 0}
+                f_seq = 0
+            if not t_stop and dest_code == tc:
+                t_stop = {"code": dest_code, "arr": t.get("arrivalTime", "18:00"), "dep": t.get("arrivalTime", "18:00"), "km": t.get("totalDistanceKm", 50), "sequence": 999}
+                t_seq = 999
+
+            if f_stop and t_stop and (f_seq < t_seq or f_seq == 0 or t_seq == 999):
+                seg_dep = f_stop.get("dep") or f_stop.get("arr") or t.get("departureTime", "10:00")
+                seg_arr = t_stop.get("arr") or t_stop.get("dep") or t.get("arrivalTime", "18:00")
+
+                dep_min = _hhmm_to_min(seg_dep)
+                arr_min = _hhmm_to_min(seg_arr)
+                if arr_min <= dep_min:
+                    arr_min += 24 * 60
+                dur_min = arr_min - dep_min
+
+                f_km = float(f_stop.get("km", 0))
+                t_km = float(t_stop.get("km", t.get("totalDistanceKm", 50)))
+                dist_km = abs(t_km - f_km)
+                if dist_km == 0:
+                    dist_km = float(t.get("totalDistanceKm", 25.0))
+
+                t_copy = dict(t)
+                t_copy["segment_dep_time"] = seg_dep
+                t_copy["segment_arr_time"] = seg_arr
+                t_copy["segment_duration_mins"] = max(10.0, float(dur_min))
+                t_copy["segment_distance_km"] = max(5.0, float(dist_km))
+                t_copy["segment_overnight"] = arr_min >= 24 * 60
+                t_copy["orig_codes"] = [fc]
+                t_copy["dest_codes"] = [tc]
+                results.append(t_copy)
+
+        return results
+
     def search_by_route(self, from_code: str, to_code: str, zone: Optional[str] = None) -> List[Dict[str, Any]]:
         fc = from_code.upper().strip()
         tc = to_code.upper().strip()
