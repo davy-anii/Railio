@@ -102,8 +102,17 @@ export class WhatsAppSessionManager {
       return;
     }
 
-    // 5. Step 2 in Catch Train flow: If state is AWAITING_LOCATION or locationPayload is attached (AND not awaiting train/dest)
-    if (session.state === 'AWAITING_LOCATION' || (locationPayload && session.state !== 'AWAITING_TRAIN_OR_DESTINATION')) {
+    // 5. Step 2 in Catch Train flow: If state is AWAITING_LOCATION or locationPayload is attached or message is location text/pin
+    const isLocationInput =
+      session.state === 'AWAITING_LOCATION' ||
+      !!locationPayload ||
+      (cleanText && (
+        cleanText.toLowerCase().startsWith('location') ||
+        /(-?\d+\.\d+),\s*(-?\d+\.\d+)/.test(cleanText) ||
+        cleanText.toLowerCase().includes('location pin')
+      ));
+
+    if (isLocationInput && session.state !== 'AWAITING_TRAIN_OR_DESTINATION') {
       await this.handleLocationRecorded(phoneNumber, session, cleanText, locationPayload, phoneNumberId);
       return;
     }
@@ -473,7 +482,13 @@ export class WhatsAppSessionManager {
     locationPayload?: UserLocation,
     targetPhoneId?: string
   ): Promise<void> {
-    const aiRes = await aiGateway.askAgent(messageText, phoneNumber, locationPayload?.latitude, locationPayload?.longitude);
+    const textLower = (messageText || '').toLowerCase().trim();
+    if (locationPayload || textLower.startsWith('location') || /(-?\d+\.\d+),\s*(-?\d+\.\d+)/.test(textLower)) {
+      await this.handleLocationRecorded(phoneNumber, session, messageText, locationPayload, targetPhoneId);
+      return;
+    }
+
+    const aiRes = await aiGateway.askAgent(messageText, phoneNumber, undefined, undefined);
     const reply = `🚆 *Railio AI Response*\n\n${aiRes.answer}\n\n_Type 'Menu' anytime for options._`;
 
     session.state = 'IDLE';

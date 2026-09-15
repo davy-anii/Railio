@@ -664,6 +664,21 @@ class RailIoAgent:
                 retrievedKnowledgeDocs=[]
             )
 
+        # Step 3c: Location Pin / Location Recorded direct intent handler (never return RAG dataset error)
+        if lower_query.startswith("location") or "location (" in lower_query or "location recorded" in lower_query or re.search(r'(-?\d+\.\d+),\s*(-?\d+\.\d+)', lower_query):
+            return AgentResponse(
+                answer=(
+                    "📍 **Location recorded**\n\n"
+                    "🚆 Which train are you planning to catch or what is your destination?\n"
+                    "Please enter your **Source Station** and **Destination Station** (or Train Number):\n"
+                    "_(e.g., Sealdah to Dankuni, Howrah to Bardhaman, or 32215)_"
+                ),
+                toolsExecuted=[],
+                confidenceScore=1.0,
+                retrievedKnowledgeDocs=[]
+            )
+
+
         # Step 4: Extract entities from current message
         parsed = self._extract_entities(query, session)
 
