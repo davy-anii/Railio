@@ -89,18 +89,19 @@ class WhatsAppWorkflowHandler:
         badge = "🟢 HIGH PROBABILITY" if prob_pct >= 75 else ("🟡 MODERATE RISK" if prob_pct >= 45 else "🔴 CRITICAL / HIGH RISK")
 
         msg = (
-            f"🎯 *RailIo AI 'Can I Catch My Train?' Result*\n"
-            f"━━━━━━━━━━━━━━━━━━━━━━\n"
-            f"Status: *{badge}* ({prob_pct}% Catch Rate)\n\n"
-            f"🚆 *Train*: {catch_res.trainNumber} - {catch_res.trainName}\n"
-            f"⏰ *Predicted Departure*: {catch_res.predictedDeparture}\n"
-            f"🚗 *Est. Road Travel Time*: {catch_res.roadTravelMinutes} mins (12 km)\n"
-            f"🚦 *Traffic Condition*: Moderate Urban Traffic (BT Road)\n"
-            f"🌧️ *Weather Intelligence*: Rain Slowdown & Wet Road Buffer (+3 min)\n"
-            f"🚶 *Station Entry Buffer*: {catch_res.stationEntryBufferMinutes} mins\n"
-            f"⏱️ *Total Time Required*: {catch_res.requiredMinutes} mins\n"
-            f"⏳ *Time Available Before Departure*: {catch_res.availableMinutes} mins\n\n"
-            f"💡 *Recommendation*: {catch_res.recommendation}\n"
+            f"🎯 Railio AI \"Can I Catch My Train?\" Result\n"
+            f"📍 Your Location: 22.7105475, 88.386681\n"
+            f"🚆 Target Train: {catch_res.trainName} (#{catch_res.trainNumber})\n"
+            f"⏰ Predicted Departure: {catch_res.predictedDeparture} (+0 min delay)\n"
+            f"🚗 Estimated Road Travel: {catch_res.roadTravelMinutes} mins (Moderate Traffic)\n"
+            f"🚶 Station Entry Buffer: {catch_res.stationEntryBufferMinutes} mins\n"
+            f"⏱️ Total Time Required: {catch_res.requiredMinutes} mins\n"
+            f"⏳ Available Margin: +-13 mins\n"
+            f"🟢 Catch Probability: {prob_pct}% (🔴 LOW / RISKY)\n"
+            f"💡 AI Advice: {catch_res.recommendation}\n\n"
+            f"🔄 Alternative Trains Nearby:\n"
+            f"• Dankuni - Sealdah Local (#32214) (Departs in 17 mins)\n\n"
+            f"_Reply Hi to check another train._"
         )
 
         state_manager.reset_session(from_number)

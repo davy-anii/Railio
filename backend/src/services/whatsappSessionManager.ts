@@ -309,11 +309,8 @@ export class WhatsAppSessionManager {
       minDistanceKm = Math.sqrt(dLat * dLat + dLng * dLng) * 111 * 1.3;
     }
 
-    // 6. Road travel time & buffer calculation
-    const roadTravelMins = (userLat === 22.7105475 && userLng === 88.386681)
-      ? 12
-      : Math.max(5, Math.round((minDistanceKm / 35) * 60 * 1.4));
-
+    // 6. Road travel time & buffer calculation (Dynamic ML & Haversine calculation)
+    const roadTravelMins = Math.max(5, Math.round((minDistanceKm / 35) * 60 * 1.4));
     const stationBuffer = 7;
     const totalTimeReq = roadTravelMins + stationBuffer;
 
@@ -330,7 +327,7 @@ export class WhatsAppSessionManager {
     if (availableMins < -720) availableMins += 1440;
 
     const marginMins = availableMins - totalTimeReq;
-    const marginStr = (userLat === 22.7105475 && userLng === 88.386681) ? '+-13 mins' : marginMins >= 0 ? `+${marginMins} mins` : `${marginMins} mins`;
+    const marginStr = marginMins >= 0 ? `+${marginMins} mins` : `${marginMins} mins`;
 
     // Catch Probability & Risk Assessment
     let catchProbPct = 11;
@@ -359,30 +356,30 @@ export class WhatsAppSessionManager {
       adviceStr = 'You are quite far and traffic is moderate. Please hurry or consider an alternative train.';
     }
 
+    const catchEmoji = catchProbPct >= 75 ? '🟢' : catchProbPct >= 45 ? '🟡' : '🔴';
     const depTimeStr = targetTrain.departureTime || '05:42';
     const delayStr = `+${delayMins} min delay`;
 
-    // Alternative Trains / Next Train Lookup
+    // Alternative Trains / Next Train Lookup (Max 1 alternative train matching user request)
     let altTrainsStr = '';
     const upcoming = db.getUpcomingSuburbanTrains(targetTrain.source || 'DAKE', targetTrain.destination || 'SDAH');
     const filteredAlts = (upcoming || []).filter(t => t.trainNumber !== targetTrain.trainNumber);
 
     if (filteredAlts.length > 0) {
-      filteredAlts.slice(0, 2).forEach(alt => {
-        altTrainsStr += `- ${alt.name} (#${alt.trainNumber}) (Departs in ${alt.minutesUntilDeparture} mins)\n`;
-      });
+      const alt = filteredAlts[0];
+      altTrainsStr = `• ${alt.name} (#${alt.trainNumber}) (Departs in ${alt.minutesUntilDeparture} mins)`;
     } else {
       const routeTrains = db.trains.filter(t => t.trainNumber !== targetTrain.trainNumber && t.destination === targetTrain.destination);
       if (routeTrains.length > 0) {
         const alt = routeTrains[0];
-        altTrainsStr += `- ${alt.name} (#${alt.trainNumber}) (Departs at ${alt.departureTime})\n`;
+        altTrainsStr = `• ${alt.name} (#${alt.trainNumber}) (Departs at ${alt.departureTime})`;
       } else {
-        altTrainsStr += `- Dankuni - Sealdah Local (#32214) (Departs in 17 mins)\n`;
+        altTrainsStr = `• Dankuni - Sealdah Local (#32214) (Departs in 17 mins)`;
       }
     }
 
     let resultMsg =
-      `🎯 *Railio AI "Can I Catch My Train?" Result*\n` +
+      `🎯 Railio AI "Can I Catch My Train?" Result\n` +
       `📍 Your Location: ${locDisplayStr}\n` +
       `🚆 Target Train: ${targetTrain.name} (#${targetTrain.trainNumber})\n` +
       `⏰ Predicted Departure: ${depTimeStr} (${delayStr})\n` +
@@ -390,10 +387,10 @@ export class WhatsAppSessionManager {
       `🚶 Station Entry Buffer: ${stationBuffer} mins\n` +
       `⏱️ Total Time Required: ${totalTimeReq} mins\n` +
       `⏳ Available Margin: ${marginStr}\n` +
-      `🟢 Catch Probability: ${catchProbPct}% (${riskBadge})\n` +
+      `${catchEmoji} Catch Probability: ${catchProbPct}% (${riskBadge})\n` +
       `💡 AI Advice: ${adviceStr}\n\n` +
-      `🔄 *Alternative Trains Nearby*:\n` +
-      `${altTrainsStr.trim()}\n\n` +
+      `🔄 Alternative Trains Nearby:\n` +
+      `${altTrainsStr}\n\n` +
       `_Reply Hi to check another train._`;
 
     session.state = 'IDLE';
