@@ -55,7 +55,7 @@ export const handleIncomingWebhook = async (req: Request, res: Response): Promis
       const change = entry?.changes?.[0];
       const value = change?.value;
       const metadata = value?.metadata || {};
-      const incomingPhoneId = metadata.phone_number_id || process.env.WHATSAPP_PHONE_NUMBER_ID || '1362878316903671';
+      const incomingPhoneId = metadata.phone_number_id || process.env.WHATSAPP_PHONE_NUMBER_ID || '1282348971633521';
       const message = value?.messages?.[0];
 
       if (message) {

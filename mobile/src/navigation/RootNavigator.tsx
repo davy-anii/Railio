@@ -180,8 +180,8 @@ const MainTabNavigator: React.FC = React.memo(() => {
               <TouchableOpacity
                 {...props}
                 onPress={() => {
-                  Linking.openURL('whatsapp://send?phone=15556783260&text=Hi').catch(() => {
-                    Linking.openURL('https://wa.me/15556783260?text=Hi');
+                  Linking.openURL('whatsapp://send?phone=15556228343&text=Hi').catch(() => {
+                    Linking.openURL('https://wa.me/15556228343?text=Hi');
                   });
                 }}
                 style={[props.style, { position: 'relative' }]}

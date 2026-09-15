@@ -49,24 +49,23 @@ export class WhatsAppSessionManager {
 
     console.log(`[WA] MESSAGE_PARSED user=${phoneNumber} state=${session.state} text="${cleanText}" phone_number_id=${phoneNumberId}`);
 
-
     // 1. Handle Quick Reply Buttons or direct trigger commands
     if (buttonReplyId === 'btn_catch_train' || textLower === 'catch' || textLower.includes('can i catch') || textLower.includes('catch train')) {
-      await this.promptCatchTrainInput(phoneNumber, session);
+      await this.promptCatchTrainInput(phoneNumber, session, phoneNumberId);
       return;
     }
 
     if (buttonReplyId === 'btn_live_status' || textLower === 'status' || textLower.includes('live status') || textLower.includes('train status')) {
-      await this.promptTrainStatusInput(phoneNumber, session);
+      await this.promptTrainStatusInput(phoneNumber, session, phoneNumberId);
       return;
     }
 
     if (buttonReplyId === 'btn_suburban' || textLower === 'suburban' || textLower.includes('local train') || textLower.includes('timetable')) {
-      await this.handleSuburbanTimetableQuery(phoneNumber, session);
+      await this.handleSuburbanTimetableQuery(phoneNumber, session, phoneNumberId);
       return;
     }
 
-    // 2. Handle Greeting or Menu request
+    // 2. Handle Greeting or Menu request ("hi", "hello", "hey", "menu", etc.)
     if (
       session.state === 'IDLE' ||
       textLower === 'hi' ||
@@ -76,31 +75,30 @@ export class WhatsAppSessionManager {
       textLower === 'help' ||
       textLower === 'start'
     ) {
-      await this.sendMainMenu(phoneNumber, session);
+      await this.sendMainMenu(phoneNumber, session, phoneNumberId);
       return;
     }
 
     // 3. Handle Location Share Attachment or Catch Train Input processing
     if (locationPayload || (session.state as string) === 'AWAITING_CATCH_DETAILS') {
-      await this.handleCatchTrainCalculation(phoneNumber, session, cleanText, locationPayload);
+      await this.handleCatchTrainCalculation(phoneNumber, session, cleanText, locationPayload, phoneNumberId);
       return;
     }
 
     // 4. Handle Live Train Status Query state
     if ((session.state as string) === 'AWAITING_TRAIN_STATUS' || (cleanText && /\b\d{5}\b/.test(cleanText))) {
-      await this.handleTrainStatusQuery(phoneNumber, session, cleanText);
+      await this.handleTrainStatusQuery(phoneNumber, session, cleanText, phoneNumberId);
       return;
     }
 
-
     // 5. Fallback AI Agent response for general queries
-    await this.handleGeneralAIQuery(phoneNumber, session, cleanText, locationPayload);
+    await this.handleGeneralAIQuery(phoneNumber, session, cleanText, locationPayload, phoneNumberId);
   }
 
   /**
    * Sends the interactive initial greeting & main menu
    */
-  private async sendMainMenu(phoneNumber: string, session: UserSession): Promise<void> {
+  private async sendMainMenu(phoneNumber: string, session: UserSession, targetPhoneId?: string): Promise<void> {
     session.state = 'IDLE';
     const header = '🚆 RailIo AI Railway Assistant';
     const body = 'Welcome to *RailIo* - Predict • Protect • Connect!\n\nHow can I assist your journey today? Select an option below or type your train number.';
@@ -110,13 +108,13 @@ export class WhatsAppSessionManager {
       { id: 'btn_suburban', title: '🕒 Suburban Local' },
     ];
 
-    await whatsappService.sendInteractiveButtons(phoneNumber, body, buttons, header);
+    await whatsappService.sendInteractiveButtons(phoneNumber, body, buttons, header, targetPhoneId);
   }
 
   /**
    * Prompts user to send location or train number for Catch Probability
    */
-  private async promptCatchTrainInput(phoneNumber: string, session: UserSession): Promise<void> {
+  private async promptCatchTrainInput(phoneNumber: string, session: UserSession, targetPhoneId?: string): Promise<void> {
     session.state = 'AWAITING_CATCH_DETAILS';
     const text =
       `🎯 *RailIo "Can I Catch My Train?" AI Calculator*\n\n` +
@@ -124,19 +122,19 @@ export class WhatsAppSessionManager {
       `1️⃣ *Share your Live GPS Location* 📍 using WhatsApp Location pin.\n` +
       `2️⃣ *OR Reply with your Train Name or Number* (e.g. *Vande Bharat*, *12301*, or *Howrah to Delhi*).`;
 
-    await whatsappService.sendMessage(phoneNumber, text);
+    await whatsappService.sendMessage(phoneNumber, text, targetPhoneId);
   }
 
   /**
    * Prompts user for Train Number to check live status
    */
-  private async promptTrainStatusInput(phoneNumber: string, session: UserSession): Promise<void> {
+  private async promptTrainStatusInput(phoneNumber: string, session: UserSession, targetPhoneId?: string): Promise<void> {
     session.state = 'AWAITING_TRAIN_STATUS';
     const text =
       `🚆 *RailIo Live Train Status*\n\n` +
       `Please reply with the *Train Number or Name* (e.g. *12301*, *22436*, or *Vande Bharat*) to track live GPS position, delay, speed, and ETA.`;
 
-    await whatsappService.sendMessage(phoneNumber, text);
+    await whatsappService.sendMessage(phoneNumber, text, targetPhoneId);
   }
 
   /**
@@ -146,7 +144,8 @@ export class WhatsAppSessionManager {
     phoneNumber: string,
     session: UserSession,
     inputMessage: string,
-    locationPayload?: UserLocation
+    locationPayload?: UserLocation,
+    targetPhoneId?: string
   ): Promise<void> {
     // Extract 5-digit train number or fallback to '12301'
     const trainMatch = inputMessage.match(/\b\d{5}\b/);
@@ -224,19 +223,19 @@ export class WhatsAppSessionManager {
     }
 
     session.state = 'IDLE';
-    await whatsappService.sendMessage(phoneNumber, resultMsg);
+    await whatsappService.sendMessage(phoneNumber, resultMsg, targetPhoneId);
   }
 
   /**
    * Handles Live Train Status Lookup
    */
-  private async handleTrainStatusQuery(phoneNumber: string, session: UserSession, messageText: string): Promise<void> {
+  private async handleTrainStatusQuery(phoneNumber: string, session: UserSession, messageText: string, targetPhoneId?: string): Promise<void> {
     const trainMatch = messageText.match(/\b\d{5}\b/);
     const trainNumber = trainMatch ? trainMatch[0] : '12301';
 
     const train = db.getTrain(trainNumber);
     if (!train) {
-      await whatsappService.sendMessage(phoneNumber, `❌ Train *${trainNumber}* not found in database. Please enter a valid train number or train name (e.g. *12301*, *22436*, or *Vande Bharat*).`);
+      await whatsappService.sendMessage(phoneNumber, `❌ Train *${trainNumber}* not found in database. Please enter a valid train number or train name (e.g. *12301*, *22436*, or *Vande Bharat*).`, targetPhoneId);
       return;
     }
 
@@ -256,13 +255,13 @@ export class WhatsAppSessionManager {
       `🎯 Catch Probability: *${Math.round(state.confidence * 100)}%*`;
 
     session.state = 'IDLE';
-    await whatsappService.sendMessage(phoneNumber, statusMsg);
+    await whatsappService.sendMessage(phoneNumber, statusMsg, targetPhoneId);
   }
 
   /**
    * Handles Suburban Local Train Timetable Query
    */
-  private async handleSuburbanTimetableQuery(phoneNumber: string, session: UserSession): Promise<void> {
+  private async handleSuburbanTimetableQuery(phoneNumber: string, session: UserSession, targetPhoneId?: string): Promise<void> {
     const upcoming = db.getUpcomingSuburbanTrains('DAKE', 'SDAH');
 
     let msg =
@@ -284,7 +283,7 @@ export class WhatsAppSessionManager {
     }
 
     session.state = 'IDLE';
-    await whatsappService.sendMessage(phoneNumber, msg);
+    await whatsappService.sendMessage(phoneNumber, msg, targetPhoneId);
   }
 
   /**
@@ -294,13 +293,14 @@ export class WhatsAppSessionManager {
     phoneNumber: string,
     session: UserSession,
     messageText: string,
-    locationPayload?: UserLocation
+    locationPayload?: UserLocation,
+    targetPhoneId?: string
   ): Promise<void> {
     const aiRes = await aiGateway.askAgent(messageText, phoneNumber, locationPayload?.latitude, locationPayload?.longitude);
     const reply = `🚆 *RailIo AI Response*\n\n${aiRes.answer}\n\n_Type 'Menu' anytime for options._`;
 
     session.state = 'IDLE';
-    await whatsappService.sendMessage(phoneNumber, reply);
+    await whatsappService.sendMessage(phoneNumber, reply, targetPhoneId);
   }
 }
 
