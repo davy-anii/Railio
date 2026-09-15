@@ -508,7 +508,7 @@ export const HomeScreen: React.FC = React.memo(() => {
                 { num: '112', title: 'National Emergency', desc: 'Police, Medical Ambulance & Fire Services', icon: <ShieldAlert size={18} color="#E11D48" />, isWhatsApp: false, action: 'tel:112' },
                 { num: '14646', title: 'IRCTC Customer Care', desc: 'Train Tickets, Refund & E-Booking Assistance', icon: <Headset size={18} color="#0284C7" />, isWhatsApp: false, action: 'tel:14646' },
                 { num: '1323', title: 'eCatering Food Support', desc: 'In-train food order helpline & quality complaints', icon: <PhoneCall size={18} color="#F59E0B" />, isWhatsApp: false, action: 'tel:1323' },
-                { num: '+91 8750001323', title: 'WhatsApp Food & Support', desc: 'Order food on track & instant chat assistance', icon: <MessageCircle size={18} color="#25D366" />, isWhatsApp: true, action: 'whatsapp://send?phone=918750001323' },
+                { num: '+1 (555) 622-8343', title: 'WhatsApp AI Sathi', desc: 'Instant live train tracking, catch probability & support', icon: <MessageCircle size={18} color="#25D366" />, isWhatsApp: true, action: 'whatsapp://send?phone=15556228343&text=Hi' },
                 { num: '1098', title: 'Childline Emergency', desc: 'National hotline for child protection & assistance', icon: <PhoneCall size={18} color="#8B5CF6" />, isWhatsApp: false, action: 'tel:1098' },
                 { num: '+91 8044647999', title: 'International Tourist Support', desc: 'Support for international travelers & non-Indian SIMs', icon: <PhoneCall size={18} color="#059669" />, isWhatsApp: false, action: 'tel:+918044647999' },
               ].map((item, idx) => (
@@ -517,7 +517,7 @@ export const HomeScreen: React.FC = React.memo(() => {
                   onPress={() => {
                     Linking.openURL(item.action).catch(() => {
                       if (item.isWhatsApp) {
-                        Linking.openURL('https://wa.me/918750001323');
+                        Linking.openURL('https://wa.me/15556228343?text=Hi');
                       }
                     });
                   }}

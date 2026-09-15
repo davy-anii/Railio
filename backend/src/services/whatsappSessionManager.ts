@@ -65,7 +65,7 @@ export class WhatsAppSessionManager {
       return;
     }
 
-    // 2. Handle Greeting or Menu request ("hi", "hello", "hey", "menu", etc.)
+    // 2. Handle Greeting or Menu request ("hi", "hello", "hey", "menu", "start", etc.)
     if (
       session.state === 'IDLE' ||
       textLower === 'hi' ||
@@ -73,7 +73,8 @@ export class WhatsAppSessionManager {
       textLower === 'hey' ||
       textLower === 'menu' ||
       textLower === 'help' ||
-      textLower === 'start'
+      textLower === 'start' ||
+      !cleanText
     ) {
       await this.sendMainMenu(phoneNumber, session, phoneNumberId);
       return;
@@ -96,7 +97,7 @@ export class WhatsAppSessionManager {
   }
 
   /**
-   * Sends the interactive initial greeting & main menu
+   * Sends the interactive initial greeting & main menu (with automatic text fallback)
    */
   private async sendMainMenu(phoneNumber: string, session: UserSession, targetPhoneId?: string): Promise<void> {
     session.state = 'IDLE';
@@ -108,7 +109,18 @@ export class WhatsAppSessionManager {
       { id: 'btn_suburban', title: '🕒 Suburban Local' },
     ];
 
-    await whatsappService.sendInteractiveButtons(phoneNumber, body, buttons, header, targetPhoneId);
+    const result = await whatsappService.sendInteractiveButtons(phoneNumber, body, buttons, header, targetPhoneId);
+    if (!result.success) {
+      console.warn(`[WA-SESSION] Interactive buttons failed (${result.error}), sending plain text menu fallback...`);
+      const textFallback =
+        `🚆 *RailIo AI Railway Assistant*\n\n` +
+        `Welcome to *RailIo* - Predict • Protect • Connect!\n\n` +
+        `How can I assist your journey today?\n\n` +
+        `1️⃣ *Can I Catch My Train?* (Reply "Catch" or share location pin)\n` +
+        `2️⃣ *Live Train Status* (Reply "Status" or train number e.g. *12301* or *32216*)\n` +
+        `3️⃣ *Suburban Local Timetable* (Reply "Suburban")`;
+      await whatsappService.sendMessage(phoneNumber, textFallback, targetPhoneId);
+    }
   }
 
   /**
@@ -120,7 +132,7 @@ export class WhatsAppSessionManager {
       `🎯 *RailIo "Can I Catch My Train?" AI Calculator*\n\n` +
       `To check whether you can catch your train in live traffic:\n\n` +
       `1️⃣ *Share your Live GPS Location* 📍 using WhatsApp Location pin.\n` +
-      `2️⃣ *OR Reply with your Train Name or Number* (e.g. *Vande Bharat*, *12301*, or *Howrah to Delhi*).`;
+      `2️⃣ *OR Reply with your Train Name or Number* (e.g. *Vande Bharat*, *12301*, or *32216*).`;
 
     await whatsappService.sendMessage(phoneNumber, text, targetPhoneId);
   }
@@ -132,7 +144,7 @@ export class WhatsAppSessionManager {
     session.state = 'AWAITING_TRAIN_STATUS';
     const text =
       `🚆 *RailIo Live Train Status*\n\n` +
-      `Please reply with the *Train Number or Name* (e.g. *12301*, *22436*, or *Vande Bharat*) to track live GPS position, delay, speed, and ETA.`;
+      `Please reply with the *Train Number or Name* (e.g. *12301*, *32216*, or *Vande Bharat*) to track live GPS position, delay, speed, and ETA.`;
 
     await whatsappService.sendMessage(phoneNumber, text, targetPhoneId);
   }
@@ -147,12 +159,12 @@ export class WhatsAppSessionManager {
     locationPayload?: UserLocation,
     targetPhoneId?: string
   ): Promise<void> {
-    // Extract 5-digit train number or fallback to '12301'
+    // Extract 5-digit train number or fallback to '32216'
     const trainMatch = inputMessage.match(/\b\d{5}\b/);
-    const trainNumber = trainMatch ? trainMatch[0] : session.pendingTrainNumber || '12301';
+    const trainNumber = trainMatch ? trainMatch[0] : session.pendingTrainNumber || '32216';
     session.pendingTrainNumber = trainNumber;
 
-    const train = db.getTrain(trainNumber) || db.getTrain('12301');
+    const train = db.getTrain(trainNumber) || db.getTrain('32216') || db.getTrain('12301');
 
     // Default coordinates (Howrah / Kolkata area) if location not provided
     const userLat = locationPayload?.latitude || 22.5726;
@@ -231,11 +243,11 @@ export class WhatsAppSessionManager {
    */
   private async handleTrainStatusQuery(phoneNumber: string, session: UserSession, messageText: string, targetPhoneId?: string): Promise<void> {
     const trainMatch = messageText.match(/\b\d{5}\b/);
-    const trainNumber = trainMatch ? trainMatch[0] : '12301';
+    const trainNumber = trainMatch ? trainMatch[0] : '32216';
 
-    const train = db.getTrain(trainNumber);
+    const train = db.getTrain(trainNumber) || db.getTrain('32216') || db.getTrain('12301');
     if (!train) {
-      await whatsappService.sendMessage(phoneNumber, `❌ Train *${trainNumber}* not found in database. Please enter a valid train number or train name (e.g. *12301*, *22436*, or *Vande Bharat*).`, targetPhoneId);
+      await whatsappService.sendMessage(phoneNumber, `❌ Train *${trainNumber}* not found in database. Please enter a valid train number or train name (e.g. *32216*, *12301*, or *Vande Bharat*).`, targetPhoneId);
       return;
     }
 
