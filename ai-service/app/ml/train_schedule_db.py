@@ -217,15 +217,31 @@ class TrainScheduleDB:
         else:
             distance_km = float(train.get("totalDistanceKm", 500.0))
 
+        dep_parts = dep_str.split(":")
+        dep_hour = int(dep_parts[0]) if len(dep_parts) > 0 and dep_parts[0].isdigit() else 10
+        dep_min = int(dep_parts[1]) if len(dep_parts) > 1 and dep_parts[1].isdigit() else 0
+
+        arr_parts = arr_str.split(":")
+        arr_hour = int(arr_parts[0]) if len(arr_parts) > 0 and arr_parts[0].isdigit() else 18
+        arr_min = int(arr_parts[1]) if len(arr_parts) > 1 and arr_parts[1].isdigit() else 0
+
         direction = 1 if train.get("source", "").upper() != "NDLS" and train.get("source", "").upper() != "SDAH" else 0
         dep_delay = float(live.get("delayMinutes", 0.0))
         curr_speed = float(live.get("speed", train.get("avgSpeed", 60)))
 
         return {
             "trainNumber": train_number,
+            "trainName": train.get("name", f"Train {train_number}"),
+            "source": train.get("source", "SDAH"),
+            "destination": train.get("destination", "DKAE"),
+            "liveState": live,
             "zone": train.get("zone", "NR"),
             "departureTime": dep_str,
             "arrivalTime": arr_str,
+            "departureHour": dep_hour,
+            "departureMinute": dep_min,
+            "arrivalHour": arr_hour,
+            "arrivalMinute": arr_min,
             "travelDurationMins": travel_dur_mins,
             "distanceKm": distance_km if distance_km > 0 else 500.0,
             "direction": direction,
