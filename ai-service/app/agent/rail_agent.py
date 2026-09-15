@@ -650,6 +650,20 @@ class RailIoAgent:
             }
             session = self.sessions[session_id]
 
+        # Step 3b: Catch Train direct intent handler (never return RAG Tatkal rules)
+        clean_lower_q = re.sub(r'[^\w\s]', '', lower_query).strip()
+        if "catch" in clean_lower_q and ("train" in clean_lower_q or "can i" in clean_lower_q or "my" in clean_lower_q):
+            return AgentResponse(
+                answer=(
+                    "📍 **Can I Catch My Train?** (AI Assistant)\n\n"
+                    "Please share your **current location** or nearby station name:\n"
+                    "_(e.g., Howrah, Kolkata, Dankuni, Salt Lake, or share your WhatsApp location pin 📍)_"
+                ),
+                toolsExecuted=[],
+                confidenceScore=1.0,
+                retrievedKnowledgeDocs=[]
+            )
+
         # Step 4: Extract entities from current message
         parsed = self._extract_entities(query, session)
 
