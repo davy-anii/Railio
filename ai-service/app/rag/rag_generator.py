@@ -19,7 +19,7 @@ load_dotenv()
 _GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
 _GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
 
-SYSTEM_PROMPT = """You are RailSathi AI — the Senior Railway Intelligence Specialist and Passenger Assistant for Indian Railways (Eastern Railway / Suburban Division).
+SYSTEM_PROMPT = """You are Railio AI — the Senior Railway Intelligence Specialist and Passenger Assistant for Indian Railways (Eastern Railway / Suburban Division).
 
 Your mission is to provide accurate, authoritative, and helpful answers strictly grounded in the provided Railway Knowledge Base, 5-Year Historical Delay Datasets, Station Weather, Platform/Coach Crowding, and real-time Machine Learning model delay forecasts.
 
@@ -183,10 +183,10 @@ class RAGGenerator:
 
         joined = "\n\n".join(blocks)
         if language_style == "bn":
-            return f"🕒 **বর্তমান সময়**: {time_str} (IST)\n🚆 **RailSathi Verified Information**:\n\n{joined}"
+            return f"🕒 **বর্তমান সময়**: {time_str} (IST)\n🚆 **Railio Verified Information**:\n\n{joined}"
         elif language_style == "hi":
-            return f"🕒 **वर्तमान समय**: {time_str} (IST)\n🚆 **RailSathi Verified Information**:\n\n{joined}"
-        return f"🕒 **Live Current Time**: {time_str} (IST)\n🚆 **RailSathi Intelligence Summary**:\n\n{joined}"
+            return f"🕒 **वर्तमान समय**: {time_str} (IST)\n🚆 **Railio Verified Information**:\n\n{joined}"
+        return f"🕒 **Live Current Time**: {time_str} (IST)\n🚆 **Railio Intelligence Summary**:\n\n{joined}"
 
 
 # Singleton instance

@@ -46,16 +46,20 @@ export class WhatsAppSessionManager {
   ): Promise<void> {
     const session = this.getSession(phoneNumber);
     const cleanText = (messageText || '').trim();
-    const textLower = cleanText.toLowerCase();
+    // Strip emojis for robust keyword detection
+    const cleanTextNoEmoji = cleanText.replace(/[\u{1F600}-\u{1F64F}\u{1F300}-\u{1F5FF}\u{1F680}-\u{1F6FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/gu, '').trim();
+    const textLower = cleanTextNoEmoji.toLowerCase();
 
-    console.log(`[WA] MESSAGE_PARSED user=${phoneNumber} state=${session.state} text="${cleanText}" phone_number_id=${phoneNumberId}`);
+    console.log(`[WA] MESSAGE_PARSED user=${phoneNumber} state=${session.state} text="${cleanText}" buttonId="${buttonReplyId}" phone_number_id=${phoneNumberId}`);
 
     // 1. Step 1: Handle Quick Reply Buttons or direct trigger commands for "Can I Catch My Train?"
     if (
       buttonReplyId === 'btn_catch_train' ||
+      (buttonReplyId && buttonReplyId.includes('catch')) ||
       textLower === 'catch' ||
       textLower.includes('can i catch') ||
-      textLower.includes('catch train')
+      textLower.includes('catch train') ||
+      cleanText.includes('Catch Train')
     ) {
       await this.promptCatchTrainLocation(phoneNumber, session, phoneNumberId);
       return;
@@ -64,9 +68,11 @@ export class WhatsAppSessionManager {
     // 2. Handle Quick Reply Buttons or direct trigger commands for "Live Status"
     if (
       buttonReplyId === 'btn_live_status' ||
+      (buttonReplyId && buttonReplyId.includes('status')) ||
       textLower === 'status' ||
       textLower.includes('live status') ||
-      textLower.includes('train status')
+      textLower.includes('train status') ||
+      cleanText.includes('Train Status')
     ) {
       await this.promptTrainStatusInput(phoneNumber, session, phoneNumberId);
       return;
@@ -108,7 +114,7 @@ export class WhatsAppSessionManager {
       return;
     }
 
-    // 7. Handle Live Train Status Query state
+    // 7. Handle Live Train Status Query state OR direct train number lookup in IDLE state
     if (session.state === 'AWAITING_TRAIN_STATUS' || (cleanText && /\b\d{5}\b/.test(cleanText) && session.state === 'IDLE')) {
       await this.handleTrainStatusQuery(phoneNumber, session, cleanText, phoneNumberId);
       return;
@@ -146,6 +152,7 @@ export class WhatsAppSessionManager {
    */
   private async promptCatchTrainLocation(phoneNumber: string, session: UserSession, targetPhoneId?: string): Promise<void> {
     session.state = 'AWAITING_LOCATION';
+    session.pendingLocation = undefined; // Clear any previous location to force explicit location request!
     const text =
       `📍 *Can I Catch My Train?* (AI Assistant)\n\n` +
       `Please share your *current location* or nearby station name:\n` +
@@ -164,9 +171,9 @@ export class WhatsAppSessionManager {
     locationPayload?: UserLocation,
     targetPhoneId?: string
   ): Promise<void> {
-    let lat = 22.7105475;
-    let lng = 88.386681;
-    let locName = '22.7105475, 88.386681';
+    let lat: number | undefined;
+    let lng: number | undefined;
+    let locName = '';
 
     if (locationPayload) {
       lat = locationPayload.latitude;
@@ -188,9 +195,10 @@ export class WhatsAppSessionManager {
         else if (lower.includes('sodepur')) { lat = 22.7105475; lng = 88.386681; locName = '22.7105475, 88.386681'; }
         else { locName = inputMessage; }
       }
-      session.pendingLocation = { latitude: lat, longitude: lng, name: locName };
+      session.pendingLocation = { latitude: lat || 22.7105475, longitude: lng || 88.386681, name: locName };
     } else {
-      session.pendingLocation = { latitude: lat, longitude: lng, name: locName };
+      await this.promptCatchTrainLocation(phoneNumber, session, targetPhoneId);
+      return;
     }
 
     session.state = 'AWAITING_TRAIN_OR_DESTINATION';
@@ -213,10 +221,16 @@ export class WhatsAppSessionManager {
     inputMessage: string,
     targetPhoneId?: string
   ): Promise<void> {
-    const userLoc = session.pendingLocation || { latitude: 22.7105475, longitude: 88.386681, name: '22.7105475, 88.386681' };
+    // Explicit Location Check: If user has not provided location in Step 2, ask for location first!
+    if (!session.pendingLocation) {
+      await this.promptCatchTrainLocation(phoneNumber, session, targetPhoneId);
+      return;
+    }
+
+    const userLoc = session.pendingLocation;
     const locDisplayStr = userLoc.latitude && userLoc.longitude
       ? `${userLoc.latitude.toFixed(7)}, ${userLoc.longitude.toFixed(6)}`
-      : userLoc.name || '22.7105475, 88.386681';
+      : userLoc.name || 'Current Shared Location';
 
     const textLower = inputMessage.toLowerCase().trim();
     const trainMatch = inputMessage.match(/\b\d{5}\b/);
@@ -460,7 +474,7 @@ export class WhatsAppSessionManager {
     targetPhoneId?: string
   ): Promise<void> {
     const aiRes = await aiGateway.askAgent(messageText, phoneNumber, locationPayload?.latitude, locationPayload?.longitude);
-    const reply = `🚆 *RailIo AI Response*\n\n${aiRes.answer}\n\n_Type 'Menu' anytime for options._`;
+    const reply = `🚆 *Railio AI Response*\n\n${aiRes.answer}\n\n_Type 'Menu' anytime for options._`;
 
     session.state = 'IDLE';
     await whatsappService.sendMessage(phoneNumber, reply, targetPhoneId);
