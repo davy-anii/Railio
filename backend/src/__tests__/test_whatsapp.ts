@@ -16,19 +16,22 @@ async function runTests() {
   console.log('\n--- Test 1: User sends "Hi" (Greeting / Main Menu) ---');
   await whatsappSessionManager.processIncomingMessage(testPhone, 'Hi');
 
-  console.log('\n--- Test 2: User taps "🎯 Can I Catch Train?" button ---');
-  await whatsappSessionManager.processIncomingMessage(testPhone, 'Can I Catch Train', 'btn_catch_train');
+  console.log('\n--- Test 2: User taps "🎯 Catch Train?" button ---');
+  await whatsappSessionManager.processIncomingMessage(testPhone, 'Catch Train?', 'btn_catch_train');
 
-  console.log('\n--- Test 3: User replies with Train "32216" and shares Location ---');
+  console.log('\n--- Test 3: User shares Location Pin ---');
   await whatsappSessionManager.processIncomingMessage(
     testPhone,
-    '32216',
     undefined,
-    { latitude: 22.5726, longitude: 88.3639, name: 'Esplanade Metro Kolkata' }
+    undefined,
+    { latitude: 22.7105475, longitude: 88.386681 }
   );
 
-  console.log('\n--- Test 4: User asks for Suburban Local Timetable ---');
-  await whatsappSessionManager.processIncomingMessage(testPhone, 'Suburban', 'btn_suburban');
+  console.log('\n--- Test 4: User sends Destination "Dankuni" ---');
+  await whatsappSessionManager.processIncomingMessage(testPhone, 'Dankuni');
+
+  console.log('\n--- Test 5: User asks for Live Train Status ---');
+  await whatsappSessionManager.processIncomingMessage(testPhone, 'Train Status', 'btn_live_status');
 
   console.log('\n✅ All WhatsApp integration tests completed successfully!');
 }

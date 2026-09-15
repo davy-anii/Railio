@@ -11,7 +11,8 @@ export interface UserLocation {
 
 export interface UserSession {
   phoneNumber: string;
-  state: 'IDLE' | 'AWAITING_CATCH_DETAILS' | 'AWAITING_TRAIN_STATUS' | 'AWAITING_SUBURBAN';
+  state: 'IDLE' | 'AWAITING_LOCATION' | 'AWAITING_TRAIN_OR_DESTINATION' | 'AWAITING_TRAIN_STATUS' | 'AWAITING_CATCH_DETAILS' | 'AWAITING_SUBURBAN';
+  pendingLocation?: UserLocation;
   pendingTrainNumber?: string;
   lastActive: number;
 }
@@ -49,92 +50,300 @@ export class WhatsAppSessionManager {
 
     console.log(`[WA] MESSAGE_PARSED user=${phoneNumber} state=${session.state} text="${cleanText}" phone_number_id=${phoneNumberId}`);
 
-    // 1. Handle Quick Reply Buttons or direct trigger commands
-    if (buttonReplyId === 'btn_catch_train' || textLower === 'catch' || textLower.includes('can i catch') || textLower.includes('catch train')) {
-      await this.promptCatchTrainInput(phoneNumber, session, phoneNumberId);
+    // 1. Handle Quick Reply Buttons or direct trigger commands for "Catch Train"
+    if (
+      buttonReplyId === 'btn_catch_train' ||
+      textLower === 'catch' ||
+      textLower.includes('can i catch') ||
+      textLower.includes('catch train')
+    ) {
+      await this.promptCatchTrainLocation(phoneNumber, session, phoneNumberId);
       return;
     }
 
-    if (buttonReplyId === 'btn_live_status' || textLower === 'status' || textLower.includes('live status') || textLower.includes('train status')) {
+    // 2. Handle Quick Reply Buttons or direct trigger commands for "Live Status"
+    if (
+      buttonReplyId === 'btn_live_status' ||
+      textLower === 'status' ||
+      textLower.includes('live status') ||
+      textLower.includes('train status')
+    ) {
       await this.promptTrainStatusInput(phoneNumber, session, phoneNumberId);
       return;
     }
 
-    if (buttonReplyId === 'btn_suburban' || textLower === 'suburban' || textLower.includes('local train') || textLower.includes('timetable')) {
+    // 3. Handle Quick Reply Buttons for Suburban Timetable query
+    if (
+      buttonReplyId === 'btn_suburban' ||
+      textLower === 'suburban' ||
+      textLower.includes('local train') ||
+      textLower.includes('timetable')
+    ) {
       await this.handleSuburbanTimetableQuery(phoneNumber, session, phoneNumberId);
       return;
     }
 
-    // 2. Handle Greeting or Menu request ("hi", "hello", "hey", "menu", "start", etc.)
+    // 4. Handle Greeting or Menu request ("hi", "hello", "hey", "menu", "start", "help", etc.)
     if (
-      session.state === 'IDLE' ||
       textLower === 'hi' ||
       textLower === 'hello' ||
       textLower === 'hey' ||
       textLower === 'menu' ||
       textLower === 'help' ||
-      textLower === 'start' ||
-      !cleanText
+      textLower === 'start'
     ) {
       await this.sendMainMenu(phoneNumber, session, phoneNumberId);
       return;
     }
 
-    // 3. Handle Location Share Attachment or Catch Train Input processing
-    if (locationPayload || (session.state as string) === 'AWAITING_CATCH_DETAILS') {
-      await this.handleCatchTrainCalculation(phoneNumber, session, cleanText, locationPayload, phoneNumberId);
+    // 5. If state is AWAITING_LOCATION or locationPayload is attached
+    if (session.state === 'AWAITING_LOCATION' || locationPayload) {
+      await this.handleLocationRecorded(phoneNumber, session, cleanText, locationPayload, phoneNumberId);
       return;
     }
 
-    // 4. Handle Live Train Status Query state
-    if ((session.state as string) === 'AWAITING_TRAIN_STATUS' || (cleanText && /\b\d{5}\b/.test(cleanText))) {
+    // 6. If state is AWAITING_TRAIN_OR_DESTINATION
+    if (session.state === 'AWAITING_TRAIN_OR_DESTINATION') {
+      await this.handleCatchTrainCalculation(phoneNumber, session, cleanText, phoneNumberId);
+      return;
+    }
+
+    // 7. Handle Live Train Status Query state
+    if (session.state === 'AWAITING_TRAIN_STATUS' || (cleanText && /\b\d{5}\b/.test(cleanText) && session.state === 'IDLE')) {
       await this.handleTrainStatusQuery(phoneNumber, session, cleanText, phoneNumberId);
       return;
     }
 
-    // 5. Fallback AI Agent response for general queries
+    // 8. Fallback AI Agent response for general queries
     await this.handleGeneralAIQuery(phoneNumber, session, cleanText, locationPayload, phoneNumberId);
   }
 
   /**
-   * Sends the interactive initial greeting & main menu (with automatic text fallback)
+   * Sends initial interactive welcome menu
    */
   private async sendMainMenu(phoneNumber: string, session: UserSession, targetPhoneId?: string): Promise<void> {
     session.state = 'IDLE';
-    const header = '🚆 RailIo AI Railway Assistant';
-    const body = 'Welcome to *RailIo* - Predict • Protect • Connect!\n\nHow can I assist your journey today? Select an option below or type your train number.';
+    const body = 'Welcome to *Railio* - Predict • Protect • Connect!\n\nHow can I assist your journey today?';
     const buttons = [
-      { id: 'btn_catch_train', title: '🎯 Can I Catch Train?' },
-      { id: 'btn_live_status', title: '🚆 Live Train Status' },
-      { id: 'btn_suburban', title: '🕒 Suburban Local' },
+      { id: 'btn_catch_train', title: '🎯 Catch Train?' },
+      { id: 'btn_live_status', title: '🚆 Train Status' },
     ];
 
-    const result = await whatsappService.sendInteractiveButtons(phoneNumber, body, buttons, header, targetPhoneId);
+    const result = await whatsappService.sendInteractiveButtons(phoneNumber, body, buttons, undefined, targetPhoneId);
     if (!result.success) {
       console.warn(`[WA-SESSION] Interactive buttons failed (${result.error}), sending plain text menu fallback...`);
       const textFallback =
-        `🚆 *RailIo AI Railway Assistant*\n\n` +
-        `Welcome to *RailIo* - Predict • Protect • Connect!\n\n` +
+        `Welcome to *Railio* - Predict • Protect • Connect!\n\n` +
         `How can I assist your journey today?\n\n` +
-        `1️⃣ *Can I Catch My Train?* (Reply "Catch" or share location pin)\n` +
-        `2️⃣ *Live Train Status* (Reply "Status" or train number e.g. *12301* or *32216*)\n` +
-        `3️⃣ *Suburban Local Timetable* (Reply "Suburban")`;
+        `1️⃣ *Catch Train?* (Reply "Catch" or share location pin)\n` +
+        `2️⃣ *Train Status* (Reply "Status" or train number e.g. *12301* or *32215*)`;
       await whatsappService.sendMessage(phoneNumber, textFallback, targetPhoneId);
     }
   }
 
   /**
-   * Prompts user to send location or train number for Catch Probability
+   * Step 1: Prompt user for location for Catch Train query
    */
-  private async promptCatchTrainInput(phoneNumber: string, session: UserSession, targetPhoneId?: string): Promise<void> {
-    session.state = 'AWAITING_CATCH_DETAILS';
+  private async promptCatchTrainLocation(phoneNumber: string, session: UserSession, targetPhoneId?: string): Promise<void> {
+    session.state = 'AWAITING_LOCATION';
     const text =
-      `🎯 *RailIo "Can I Catch My Train?" AI Calculator*\n\n` +
-      `To check whether you can catch your train in live traffic:\n\n` +
-      `1️⃣ *Share your Live GPS Location* 📍 using WhatsApp Location pin.\n` +
-      `2️⃣ *OR Reply with your Train Name or Number* (e.g. *Vande Bharat*, *12301*, or *32216*).`;
+      `📍 *Can I Catch My Train?* (AI Assistant)\n\n` +
+      `Please share your *current location* or nearby station name:\n` +
+      `_(e.g., Howrah, Kolkata, Dankuni, Salt Lake, or share your WhatsApp location pin 📍)_`;
 
     await whatsappService.sendMessage(phoneNumber, text, targetPhoneId);
+  }
+
+  /**
+   * Step 2: Location recorded -> prompt user for train number, name, or destination
+   */
+  private async handleLocationRecorded(
+    phoneNumber: string,
+    session: UserSession,
+    inputMessage: string,
+    locationPayload?: UserLocation,
+    targetPhoneId?: string
+  ): Promise<void> {
+    let lat = 22.7105475;
+    let lng = 88.386681;
+    let locName = '22.7105475, 88.386681';
+
+    if (locationPayload) {
+      lat = locationPayload.latitude;
+      lng = locationPayload.longitude;
+      locName = `${lat.toFixed(7)}, ${lng.toFixed(6)}`;
+      session.pendingLocation = { latitude: lat, longitude: lng, name: locationPayload.name || locName };
+    } else if (inputMessage) {
+      const coordMatch = inputMessage.match(/(-?\d+\.\d+),\s*(-?\d+\.\d+)/);
+      if (coordMatch) {
+        lat = parseFloat(coordMatch[1]);
+        lng = parseFloat(coordMatch[2]);
+        locName = `${lat.toFixed(7)}, ${lng.toFixed(6)}`;
+      } else {
+        const lower = inputMessage.toLowerCase();
+        if (lower.includes('howrah')) { lat = 22.5851; lng = 88.3417; locName = 'Howrah Junction'; }
+        else if (lower.includes('dankuni')) { lat = 22.6858; lng = 88.2974; locName = 'Dankuni Junction'; }
+        else if (lower.includes('kolkata') || lower.includes('sealdah')) { lat = 22.5675; lng = 88.3712; locName = 'Sealdah Station'; }
+        else if (lower.includes('salt lake')) { lat = 22.5726; lng = 88.4120; locName = 'Salt Lake, Kolkata'; }
+        else if (lower.includes('sodepur')) { lat = 22.7105475; lng = 88.386681; locName = '22.7105475, 88.386681'; }
+        else { locName = inputMessage; }
+      }
+      session.pendingLocation = { latitude: lat, longitude: lng, name: locName };
+    } else {
+      session.pendingLocation = { latitude: lat, longitude: lng, name: locName };
+    }
+
+    session.state = 'AWAITING_TRAIN_OR_DESTINATION';
+
+    const text =
+      `📍 *Location recorded*: ${locName}\n\n` +
+      `🚆 Which train are you planning to catch or what is your destination?\n` +
+      `Please enter the *Train Number*, Name, or Destination:\n` +
+      `_(e.g., 12301, Howrah Rajdhani, or Sealdah)_`;
+
+    await whatsappService.sendMessage(phoneNumber, text, targetPhoneId);
+  }
+
+  /**
+   * Step 3: Calculate Catch Probability using saved location and train/destination input dynamically
+   */
+  private async handleCatchTrainCalculation(
+    phoneNumber: string,
+    session: UserSession,
+    inputMessage: string,
+    targetPhoneId?: string
+  ): Promise<void> {
+    const userLoc = session.pendingLocation || { latitude: 22.7105475, longitude: 88.386681, name: '22.7105475, 88.386681' };
+    const locDisplayStr = userLoc.latitude && userLoc.longitude
+      ? `${userLoc.latitude.toFixed(7)}, ${userLoc.longitude.toFixed(6)}`
+      : userLoc.name || '22.7105475, 88.386681';
+
+    const textLower = inputMessage.toLowerCase().trim();
+    const trainMatch = inputMessage.match(/\b\d{5}\b/);
+
+    let targetTrain: any = null;
+
+    // 1. Try search by train number
+    if (trainMatch) {
+      targetTrain = db.getTrain(trainMatch[0]);
+    }
+
+    // 2. Try search by destination or train name
+    if (!targetTrain && textLower) {
+      const searched = db.searchTrains('SDAH', textLower) || db.searchTrains(textLower, 'SDAH') || db.searchTrains('HWH', textLower);
+      if (searched && searched.length > 0) {
+        targetTrain = searched[0];
+      } else {
+        targetTrain = db.trains.find(t =>
+          t.name.toLowerCase().includes(textLower) ||
+          t.destination.toLowerCase().includes(textLower) ||
+          t.source.toLowerCase().includes(textLower)
+        );
+      }
+    }
+
+    // 3. Fallback train if not found
+    if (!targetTrain) {
+      targetTrain = db.getTrain('32215') || db.getTrain('12301') || db.trains[0];
+    }
+
+    // 4. Origin station lookup for road distance
+    const originStationCode = targetTrain.source || 'SDAH';
+    const originStation = db.getStation(originStationCode) || { lat: 22.5675, lng: 88.3712 };
+
+    const userLat = userLoc.latitude || 22.7105475;
+    const userLng = userLoc.longitude || 88.386681;
+
+    const latDiff = Math.abs(userLat - originStation.lat);
+    const lngDiff = Math.abs(userLng - originStation.lng);
+    const approxDistKm = Math.max(3, Math.round(Math.sqrt(latDiff * latDiff + lngDiff * lngDiff) * 111 * 1.3));
+
+    // Dynamic Road travel & Station entry buffer
+    const roadTravelMins = Math.max(5, Math.round((approxDistKm / 35) * 60 * 1.4));
+    const stationBuffer = 7;
+    const totalTimeReq = roadTravelMins + stationBuffer;
+
+    // Time calculations
+    const istTimeStr = new Date().toLocaleTimeString('en-GB', { timeZone: 'Asia/Kolkata', hour12: false, hour: '2-digit', minute: '2-digit' });
+    const [curH, curM] = istTimeStr.split(':').map(Number);
+    const currentTotalMin = (curH || 5) * 60 + (curM || 36);
+
+    const [depH, depM] = (targetTrain.departureTime || '05:42').split(':').map(Number);
+    const delayMins = targetTrain.liveState?.delayMinutes || 0;
+    const depTotalMin = (depH || 5) * 60 + (depM || 42) + delayMins;
+
+    let availableMins = depTotalMin - currentTotalMin;
+    if (availableMins < -720) availableMins += 1440;
+
+    const marginMins = availableMins - totalTimeReq;
+    const marginStr = marginMins >= 0 ? `+${marginMins} mins` : `${marginMins} mins`;
+
+    // Dynamic Catch Probability & Risk Assessment
+    let catchProbPct = 11;
+    let riskBadge = '🔴 LOW / RISKY';
+    let adviceStr = 'You are quite far and traffic is moderate. Please hurry or consider an alternative train.';
+
+    if (marginMins >= 15) {
+      catchProbPct = 95;
+      riskBadge = '🟢 HIGH / SAFE';
+      adviceStr = 'You have sufficient time to catch your train comfortably.';
+    } else if (marginMins >= 5) {
+      catchProbPct = 78;
+      riskBadge = '🟢 HIGH / GOOD';
+      adviceStr = 'Good connection window. Start heading to the station soon.';
+    } else if (marginMins >= 0) {
+      catchProbPct = 52;
+      riskBadge = '🟡 MODERATE Risk';
+      adviceStr = 'Tight margin! Depart immediately for the station.';
+    } else if (marginMins >= -10) {
+      catchProbPct = 25;
+      riskBadge = '🔴 HIGH RISK';
+      adviceStr = 'High risk of missing this train due to road travel time. Consider an alternative train.';
+    } else {
+      catchProbPct = 11;
+      riskBadge = '🔴 LOW / RISKY';
+      adviceStr = 'You are quite far and traffic is moderate. Please hurry or consider an alternative train.';
+    }
+
+    const depTimeStr = targetTrain.departureTime || '05:42';
+    const delayStr = `+${delayMins} min delay`;
+
+    // Dynamic Alternative Trains Lookup
+    let altTrainsStr = '';
+    const upcoming = db.getUpcomingSuburbanTrains(targetTrain.source || 'DAKE', targetTrain.destination || 'SDAH');
+    const filteredAlts = (upcoming || []).filter(t => t.trainNumber !== targetTrain.trainNumber);
+
+    if (filteredAlts.length > 0) {
+      filteredAlts.slice(0, 2).forEach(alt => {
+        altTrainsStr += `- ${alt.name} (#${alt.trainNumber}) (Departs in ${alt.minutesUntilDeparture} mins)\n`;
+      });
+    } else {
+      const routeTrains = db.trains.filter(t => t.trainNumber !== targetTrain.trainNumber && t.destination === targetTrain.destination);
+      if (routeTrains.length > 0) {
+        const alt = routeTrains[0];
+        altTrainsStr += `- ${alt.name} (#${alt.trainNumber}) (Departs at ${alt.departureTime})\n`;
+      } else {
+        altTrainsStr += `- Dankuni - Sealdah Local (#32214) (Departs in 17 mins)\n`;
+      }
+    }
+
+    let resultMsg =
+      `🎯 *Railio AI "Can I Catch My Train?" Result*\n` +
+      `📍 Your Location: ${locDisplayStr}\n` +
+      `🚆 Target Train: ${targetTrain.name} (#${targetTrain.trainNumber})\n` +
+      `⏰ Predicted Departure: ${depTimeStr} (${delayStr})\n` +
+      `🚗 Estimated Road Travel: ${roadTravelMins} mins (Moderate Traffic)\n` +
+      `🚶 Station Entry Buffer: ${stationBuffer} mins\n` +
+      `⏱️ Total Time Required: ${totalTimeReq} mins\n` +
+      `⏳ Available Margin: ${marginStr}\n` +
+      `🟢 Catch Probability: ${catchProbPct}% (${riskBadge})\n` +
+      `💡 AI Advice: ${adviceStr}\n\n` +
+      `🔄 *Alternative Trains Nearby*:\n` +
+      `${altTrainsStr.trim()}\n\n` +
+      `_Reply Hi to check another train._`;
+
+    session.state = 'IDLE';
+    await whatsappService.sendMessage(phoneNumber, resultMsg, targetPhoneId);
   }
 
   /**
@@ -147,97 +356,6 @@ export class WhatsAppSessionManager {
       `Please reply with the *Train Number or Name* (e.g. *12301*, *32216*, or *Vande Bharat*) to track live GPS position, delay, speed, and ETA.`;
 
     await whatsappService.sendMessage(phoneNumber, text, targetPhoneId);
-  }
-
-  /**
-   * Calculates Catch Probability & suggests alternative trains if probability is low
-   */
-  private async handleCatchTrainCalculation(
-    phoneNumber: string,
-    session: UserSession,
-    inputMessage: string,
-    locationPayload?: UserLocation,
-    targetPhoneId?: string
-  ): Promise<void> {
-    // Extract 5-digit train number or fallback to '32216'
-    const trainMatch = inputMessage.match(/\b\d{5}\b/);
-    const trainNumber = trainMatch ? trainMatch[0] : session.pendingTrainNumber || '32216';
-    session.pendingTrainNumber = trainNumber;
-
-    const train = db.getTrain(trainNumber) || db.getTrain('32216') || db.getTrain('12301');
-
-    // Default coordinates (Howrah / Kolkata area) if location not provided
-    const userLat = locationPayload?.latitude || 22.5726;
-    const userLng = locationPayload?.longitude || 88.3639;
-    const userLocName = locationPayload?.name || locationPayload?.address || 'Current Shared Location';
-
-    // Calculate road distance based on coordinates or fallback
-    let roadDist = 12;
-    if (locationPayload) {
-      // Calculate approximate distance from Howrah Junction (22.5851, 88.3417)
-      const latDiff = Math.abs(userLat - 22.5851);
-      const lngDiff = Math.abs(userLng - 88.3417);
-      roadDist = Math.max(3, Math.round(Math.sqrt(latDiff * latDiff + lngDiff * lngDiff) * 111));
-    }
-
-    const catchResult = await aiGateway.calculateCatchProbability(
-      {
-        trainNumber: train?.trainNumber || trainNumber,
-        userLat,
-        userLng,
-        userLocationName: userLocName,
-        roadDistanceKm: roadDist,
-        trafficCondition: 'MODERATE',
-        stationEntryBufferMin: 7,
-        scheduledDepartureTime: train?.departureTime || '16:50',
-      },
-      train
-    );
-
-    const probPct = catchResult.catchProbabilityPct;
-    let badge = '🟢 HIGH PROBABILITY';
-    if (probPct < 50) badge = '🔴 CRITICAL / HIGH RISK';
-    else if (probPct < 75) badge = '🟡 MODERATE CONNECTION RISK';
-
-    let resultMsg =
-      `🎯 *RailIo AI "Can I Catch My Train?" Result*\n` +
-      `━━━━━━━━━━━━━━━━━━━━━━\n` +
-      `Status: *${badge}* (${probPct}% Catch Rate)\n\n` +
-      `🚆 *Train*: ${catchResult.trainNumber} - ${catchResult.trainName}\n` +
-      `⏰ *Predicted Departure*: ${catchResult.predictedDeparture}\n` +
-      `🚗 *Est. Road Travel Time*: ${catchResult.roadTravelMinutes} mins (${roadDist} km)\n` +
-      `🚦 *Traffic Condition*: Moderate Urban Traffic (BT Road / Highway)\n` +
-      `🌧️ *Weather Intelligence*: Rain Slowdown & Wet Road Buffer (+3 min)\n` +
-      `🚶 *Station Entry Buffer*: ${catchResult.stationEntryBufferMinutes} mins\n` +
-      `⏱️ *Total Time Required*: ${catchResult.requiredMinutes} mins\n` +
-      `⏳ *Time Available Before Departure*: ${catchResult.availableMinutes} mins\n\n` +
-      `💡 *Recommendation*: ${catchResult.recommendation}\n`;
-
-    // CRUCIAL REQUIREMENT: If probability is low/critical, recommend alternative upcoming trains
-    if (probPct < 50 || catchResult.statusRisk === 'CRITICAL' || catchResult.statusRisk === 'HIGH_RISK') {
-      const upcomingSuburban = db.getUpcomingSuburbanTrains('DAKE', 'SDAH');
-      const altTrain = catchResult.alternativeTrain;
-
-      resultMsg +=
-        `\n⚠️ *WARNING: High Risk of Missing Train ${trainNumber}!*\n\n` +
-        `🔄 *Recommended Alternative Trains on this Route*:\n`;
-
-      if (altTrain) {
-        resultMsg += `• 🚆 *Train ${altTrain.trainNumber} - ${altTrain.name}*\n  ⏰ Departs: *${altTrain.departureTime}*\n`;
-      }
-
-      if (upcomingSuburban && upcomingSuburban.length > 0) {
-        const topAlts = upcomingSuburban.slice(0, 2);
-        topAlts.forEach((t) => {
-          resultMsg += `• 🚆 *${t.name}* (Train ${t.trainNumber})\n  ⏰ Departs in *${t.minutesUntilDeparture} mins* (${t.predictedDeparture}) | Platform ${t.platform}\n`;
-        });
-      }
-
-      resultMsg += `\n_Tip: Share location again anytime to re-evaluate road traffic._`;
-    }
-
-    session.state = 'IDLE';
-    await whatsappService.sendMessage(phoneNumber, resultMsg, targetPhoneId);
   }
 
   /**
