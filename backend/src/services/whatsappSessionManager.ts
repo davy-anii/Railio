@@ -360,19 +360,25 @@ export class WhatsAppSessionManager {
     const depTimeStr = targetTrain.departureTime || '05:42';
     const delayStr = `+${delayMins} min delay`;
 
-    // Alternative Trains / Next Train Lookup (Max 1 alternative train matching user request)
+    // Alternative Trains / Next Train Lookup (Strict UP vs DOWN direction preservation)
+    const srcCode = (targetTrain.source || 'SDAH').toUpperCase();
+    const destCode = (targetTrain.destination || 'DKAE').toUpperCase();
+    const isUpDirection = srcCode === 'SDAH' || destCode === 'DKAE';
+
     let altTrainsStr = '';
-    const upcoming = db.getUpcomingSuburbanTrains(targetTrain.source || 'DAKE', targetTrain.destination || 'SDAH');
+    const upcoming = db.getUpcomingSuburbanTrains(srcCode, destCode);
     const filteredAlts = (upcoming || []).filter(t => t.trainNumber !== targetTrain.trainNumber);
 
     if (filteredAlts.length > 0) {
       const alt = filteredAlts[0];
       altTrainsStr = `• ${alt.name} (#${alt.trainNumber}) (Departs in ${alt.minutesUntilDeparture} mins)`;
     } else {
-      const routeTrains = db.trains.filter(t => t.trainNumber !== targetTrain.trainNumber && t.destination === targetTrain.destination);
+      const routeTrains = db.trains.filter(t => t.trainNumber !== targetTrain.trainNumber && t.source?.toUpperCase() === srcCode && t.destination?.toUpperCase() === destCode);
       if (routeTrains.length > 0) {
         const alt = routeTrains[0];
         altTrainsStr = `• ${alt.name} (#${alt.trainNumber}) (Departs at ${alt.departureTime})`;
+      } else if (isUpDirection) {
+        altTrainsStr = `• Sealdah - Dankuni Local (#32217) (Departs in 23 mins)`;
       } else {
         altTrainsStr = `• Dankuni - Sealdah Local (#32214) (Departs in 17 mins)`;
       }

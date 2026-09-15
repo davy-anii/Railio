@@ -88,6 +88,9 @@ class WhatsAppWorkflowHandler:
         prob_pct = catch_res.catchProbabilityPct
         badge = "🟢 HIGH PROBABILITY" if prob_pct >= 75 else ("🟡 MODERATE RISK" if prob_pct >= 45 else "🔴 CRITICAL / HIGH RISK")
 
+        is_up_train = "sealdah" in text_input.lower() or "sdah" in text_input.lower()
+        alt_train = "• Sealdah - Dankuni Local (#32217) (Departs in 23 mins)" if is_up_train else "• Dankuni - Sealdah Local (#32214) (Departs in 17 mins)"
+
         msg = (
             f"🎯 Railio AI \"Can I Catch My Train?\" Result\n"
             f"📍 Your Location: 22.7105475, 88.386681\n"
@@ -100,7 +103,7 @@ class WhatsAppWorkflowHandler:
             f"🟢 Catch Probability: {prob_pct}% (🔴 LOW / RISKY)\n"
             f"💡 AI Advice: {catch_res.recommendation}\n\n"
             f"🔄 Alternative Trains Nearby:\n"
-            f"• Dankuni - Sealdah Local (#32214) (Departs in 17 mins)\n\n"
+            f"{alt_train}\n\n"
             f"_Reply Hi to check another train._"
         )
 
