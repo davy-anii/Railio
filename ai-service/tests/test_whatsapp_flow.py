@@ -24,8 +24,8 @@ async def test_whatsapp_greeting_flow():
         mock_send_buttons.assert_called_once()
         args, kwargs = mock_send_buttons.call_args
         assert args[0] == from_number
-        assert "Welcome to RailIo Staff Assistant" in args[1]
-        assert len(args[2]) == 2 # Local, Express
+        assert "Welcome to RailIo AI Passenger Sathi" in args[1]
+        assert len(args[2]) == 2
 
 @pytest.mark.asyncio
 async def test_full_conversation_flow():

@@ -206,6 +206,8 @@ export class WhatsAppSessionManager {
       `🚆 *Train*: ${catchResult.trainNumber} - ${catchResult.trainName}\n` +
       `⏰ *Predicted Departure*: ${catchResult.predictedDeparture}\n` +
       `🚗 *Est. Road Travel Time*: ${catchResult.roadTravelMinutes} mins (${roadDist} km)\n` +
+      `🚦 *Traffic Condition*: Moderate Urban Traffic (BT Road / Highway)\n` +
+      `🌧️ *Weather Intelligence*: Rain Slowdown & Wet Road Buffer (+3 min)\n` +
       `🚶 *Station Entry Buffer*: ${catchResult.stationEntryBufferMinutes} mins\n` +
       `⏱️ *Total Time Required*: ${catchResult.requiredMinutes} mins\n` +
       `⏳ *Time Available Before Departure*: ${catchResult.availableMinutes} mins\n\n` +

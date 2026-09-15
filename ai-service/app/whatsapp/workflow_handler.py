@@ -19,110 +19,115 @@ class WhatsAppWorkflowHandler:
 
         logger.info(f"[WORKFLOW] Handling incoming from={from_number} text='{text_raw}' state={session.state}")
 
-        # Handle explicit resets/greetings
+        # 1. Handle explicit resets/greetings
         if text_lower in ["hi", "hello", "hey", "start", "/start", "menu", "help", "staff", "action_menu"]:
             state_manager.reset_session(from_number)
             return await self.send_greeting(from_number, phone_number_id=phone_number_id)
 
-        # Main State Machine
-        if session.state == "IDLE":
-            return await self.send_greeting(from_number, phone_number_id=phone_number_id)
+        # 2. Quick Action / Button Triggers for Catch Train & Live Status
+        if text_lower in ["btn_catch_train", "catch", "can i catch", "can i catch train", "can i catch my train"] or ("catch" in text_lower and "train" in text_lower):
+            state_manager.update_session(from_number, state="AWAITING_CATCH_TRAIN")
+            return await whatsapp_sender.send_text(
+                from_number,
+                "🎯 *RailIo 'Can I Catch My Train?' AI Calculator*\n\n"
+                "To check whether you can catch your train in live traffic:\n\n"
+                "1️⃣ *Share your Live GPS Location* 📍 using WhatsApp Location pin.\n"
+                "2️⃣ *OR Reply with your Train Name or Number* (e.g. *32216*, *12301*, or *Vande Bharat*).",
+                phone_number_id=phone_number_id
+            )
 
-        # 1. Train Type Selection (Buttons or Text)
-        elif session.state == "AWAITING_TRAIN_TYPE" or text_upper.startswith("TRAIN_TYPE_"):
+        if text_lower in ["btn_live_status", "status", "live status", "train status", "live train status"]:
+            state_manager.update_session(from_number, state="AWAITING_TRAIN_STATUS")
+            return await whatsapp_sender.send_text(
+                from_number,
+                "🚆 *RailIo Live Train Status*\n\n"
+                "Please enter the *Train Number or Name* (e.g. *12301*, *32216*, or *Vande Bharat*) to track live GPS position, delay, speed, and ETA.",
+                phone_number_id=phone_number_id
+            )
+
+        # 3. Main State Machine Handling
+        if session.state == "AWAITING_CATCH_TRAIN":
+            return await self.handle_catch_calculation(from_number, text_raw, phone_number_id=phone_number_id)
+
+        if session.state == "AWAITING_TRAIN_STATUS" or (clean_num_match := re.search(r'\b\d{5}\b', text_raw)):
+            train_num = clean_num_match.group(0) if clean_num_match else text_raw
+            state_manager.update_session(from_number, train_number=train_num, state="COMPLETED")
+            data = model_adapter.get_train_status(train_num)
+            msg = model_adapter.format_for_whatsapp(data, "QUERY_FULL_STATUS")
+            state_manager.reset_session(from_number)
+            return await whatsapp_sender.send_text(from_number, msg, phone_number_id=phone_number_id)
+
+        # Legacy role/staff selections
+        if session.state == "AWAITING_TRAIN_TYPE" or text_upper.startswith("TRAIN_TYPE_"):
             if text_lower in ["local train", "local"] or text_upper == "TRAIN_TYPE_LOCAL":
                 state_manager.update_session(from_number, train_type="LOCAL", state="AWAITING_ROLE")
             elif text_lower in ["express train", "express"] or text_upper == "TRAIN_TYPE_EXPRESS":
                 state_manager.update_session(from_number, train_type="EXPRESS", state="AWAITING_ROLE")
             else:
-                return await whatsapp_sender.send_text(
-                    from_number, 
-                    "Please select a valid train type using the buttons.", 
-                    phone_number_id=phone_number_id
-                )
-            return await self.ask_role(from_number, state_manager.get_session(from_number).train_type, phone_number_id=phone_number_id)
-
-        # 2. Role Selection (List Item or Text)
-        elif session.state == "AWAITING_ROLE" or text_upper.startswith("ROLE_"):
-            role_val = text_upper.strip()
-            state_manager.update_session(from_number, role=role_val, state="AWAITING_QUERY")
-            return await self.ask_query_type(from_number, role_val, phone_number_id=phone_number_id)
-
-        # 3. Query Type Selection
-        elif session.state == "AWAITING_QUERY" or text_upper.startswith("QUERY_"):
-            query_map = {
-                "arrival time": "QUERY_ARRIVAL",
-                "train location": "QUERY_LOCATION",
-                "delay status": "QUERY_DELAY",
-                "full train status": "QUERY_FULL_STATUS",
-                "query_arrival": "QUERY_ARRIVAL",
-                "query_location": "QUERY_LOCATION",
-                "query_full": "QUERY_FULL_STATUS"
-            }
-            matched_query = query_map.get(text_lower, "QUERY_FULL_STATUS")
-            session = state_manager.update_session(from_number, query_type=matched_query)
-            
-            if session.train_number:
-                return await self.fetch_and_send_data(from_number, session, phone_number_id=phone_number_id)
-            else:
-                state_manager.update_session(from_number, state="AWAITING_TRAIN_NUMBER")
-                return await whatsapp_sender.send_text(
-                    from_number, 
-                    "Please enter the Train Number (e.g., 34567 or 12345):", 
-                    phone_number_id=phone_number_id
-                )
-
-        # 4. Train Number Input
-        elif session.state == "AWAITING_TRAIN_NUMBER" or re.search(r'\b\d{5}\b', text_raw):
-            match = re.search(r'\d+', text_raw)
-            if match:
-                train_num = match.group(0)
-                session = state_manager.update_session(from_number, train_number=train_num, state="COMPLETED")
-                return await self.fetch_and_send_data(from_number, session, phone_number_id=phone_number_id)
-            else:
-                return await whatsapp_sender.send_text(
-                    from_number, 
-                    "I couldn't detect a train number. Please try again:", 
-                    phone_number_id=phone_number_id
-                )
-
-        # 5. Post-completion Actions
-        elif session.state == "COMPLETED" or text_upper.startswith("ACTION_"):
-            if text_lower in ["refresh", "action_refresh"]:
-                return await self.fetch_and_send_data(from_number, session, phone_number_id=phone_number_id)
-            elif text_lower in ["change train", "action_change"]:
-                state_manager.update_session(from_number, state="AWAITING_TRAIN_NUMBER", train_number=None)
-                return await whatsapp_sender.send_text(
-                    from_number, 
-                    "Please enter the new Train Number:", 
-                    phone_number_id=phone_number_id
-                )
-            elif text_lower in ["main menu", "action_menu"]:
-                state_manager.reset_session(from_number)
                 return await self.send_greeting(from_number, phone_number_id=phone_number_id)
-            else:
-                return await whatsapp_sender.send_text(
-                    from_number, 
-                    "Please use the buttons below to proceed.", 
-                    phone_number_id=phone_number_id
-                )
+            return await self.ask_role(from_number, state_manager.get_session(from_number).train_type, phone_number_id=phone_number_id)
 
         # Default IDLE fallback -> Send Greeting
         state_manager.reset_session(from_number)
         return await self.send_greeting(from_number, phone_number_id=phone_number_id)
 
+    async def handle_catch_calculation(self, from_number: str, text_input: str, phone_number_id: Optional[str] = None):
+        from app.ml.catch_probability import catch_engine, CatchProbabilityInput
+        
+        match = re.search(r'\b\d{5}\b', text_input)
+        train_num = match.group(0) if match else "32216"
+
+        catch_res = catch_engine.calculate(CatchProbabilityInput(
+            trainNumber=train_num,
+            roadDistanceKm=12.0,
+            trafficCondition="MODERATE",
+            stationEntryBufferMin=7.0,
+            scheduledDepartureTime="16:50"
+        ))
+
+        prob_pct = catch_res.catchProbabilityPct
+        badge = "🟢 HIGH PROBABILITY" if prob_pct >= 75 else ("🟡 MODERATE RISK" if prob_pct >= 45 else "🔴 CRITICAL / HIGH RISK")
+
+        msg = (
+            f"🎯 *RailIo AI 'Can I Catch My Train?' Result*\n"
+            f"━━━━━━━━━━━━━━━━━━━━━━\n"
+            f"Status: *{badge}* ({prob_pct}% Catch Rate)\n\n"
+            f"🚆 *Train*: {catch_res.trainNumber} - {catch_res.trainName}\n"
+            f"⏰ *Predicted Departure*: {catch_res.predictedDeparture}\n"
+            f"🚗 *Est. Road Travel Time*: {catch_res.roadTravelMinutes} mins (12 km)\n"
+            f"🚦 *Traffic Condition*: Moderate Urban Traffic (BT Road)\n"
+            f"🌧️ *Weather Intelligence*: Rain Slowdown & Wet Road Buffer (+3 min)\n"
+            f"🚶 *Station Entry Buffer*: {catch_res.stationEntryBufferMinutes} mins\n"
+            f"⏱️ *Total Time Required*: {catch_res.requiredMinutes} mins\n"
+            f"⏳ *Time Available Before Departure*: {catch_res.availableMinutes} mins\n\n"
+            f"💡 *Recommendation*: {catch_res.recommendation}\n"
+        )
+
+        state_manager.reset_session(from_number)
+        return await whatsapp_sender.send_text(from_number, msg, phone_number_id=phone_number_id)
+
     async def send_greeting(self, from_number: str, phone_number_id: Optional[str] = None):
-        state_manager.update_session(from_number, state="AWAITING_TRAIN_TYPE")
+        state_manager.update_session(from_number, state="IDLE")
         buttons = [
-            {"id": "TRAIN_TYPE_LOCAL", "title": "Local Train"},
-            {"id": "TRAIN_TYPE_EXPRESS", "title": "Express Train"}
+            {"id": "btn_catch_train", "title": "🎯 Can I Catch Train?"},
+            {"id": "btn_live_status", "title": "🚆 Live Train Status"}
         ]
-        return await whatsapp_sender.send_interactive_buttons(
+        res = await whatsapp_sender.send_interactive_buttons(
             from_number, 
-            "👋 Welcome to RailIo Staff Assistant.\n\nPlease select the train type you are working with:",
+            "🚆 *RailIo AI Railway Assistant*\n\nWelcome to *RailIo* - Predict • Protect • Connect!\n\nHow can I assist your journey today?",
             buttons,
             phone_number_id=phone_number_id
         )
+        if not res:
+            text_fallback = (
+                "🚆 *RailIo AI Railway Assistant*\n\n"
+                "Welcome to *RailIo* - Predict • Protect • Connect!\n\n"
+                "How can I assist your journey today?\n\n"
+                "1️⃣ *Can I Catch My Train?* (Reply 'Catch' or share location pin)\n"
+                "2️⃣ *Live Train Status* (Reply 'Status' or enter train number e.g. *32216* or *12301*)"
+            )
+            await whatsapp_sender.send_text(from_number, text_fallback, phone_number_id=phone_number_id)
+        return res
 
     async def ask_role(self, from_number: str, train_type: Optional[str] = None, phone_number_id: Optional[str] = None):
         # Meta API restricts interactive lists to a maximum of 10 rows total

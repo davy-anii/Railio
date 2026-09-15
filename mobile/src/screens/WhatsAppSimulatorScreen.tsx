@@ -21,21 +21,57 @@ export const WhatsAppSimulatorScreen: React.FC = () => {
 
   const handleSend = () => {
     if (!input.trim()) return;
-    const textLower = input.toLowerCase();
-    const userMsg = { id: Date.now().toString(), sender: 'user', text: input, time: '06:31' };
+    const textLower = input.toLowerCase().trim();
+    const userMsg = { id: Date.now().toString(), sender: 'user', text: input, time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) };
     
     let botReplyText = '';
-    if (textLower.includes('catch') || textLower.includes('train')) {
-      botReplyText = `🚆 *RailIo Passenger AI Assistant*\n\n🎯 *"Can I Catch My Train?" Result*\n\n• Train 32216 (Dankuni - Sealdah Local) live status checked.\n• ML Model (train_delay_model.pkl) predicts 92% Catch Probability.\n• Est. Road Travel Time: 5 mins via BT Road.\n• Coach C3/C9 has the lowest device density (~16 phone signals).\n• Recommended Platform: Platform 2.`;
+    if (textLower === 'hi' || textLower === 'hello' || textLower === 'hey' || textLower === 'menu' || textLower === 'start') {
+      botReplyText =
+        `🚆 *RailIo AI Railway Assistant*\n\n` +
+        `Welcome to *RailIo* - Predict • Protect • Connect!\n\n` +
+        `How can I assist your journey today?\n\n` +
+        `1️⃣ *Can I Catch My Train?* (Reply "1" or "Catch")\n` +
+        `2️⃣ *Live Train Status* (Reply "2" or "Status")\n` +
+        `3️⃣ *Suburban Local Timetable* (Reply "3" or "Suburban")`;
+    } else if (textLower === '1' || textLower.includes('catch') || textLower.includes('can i catch')) {
+      botReplyText =
+        `🎯 *RailIo AI "Can I Catch My Train?" Result*\n` +
+        `━━━━━━━━━━━━━━━━━━━━━━\n` +
+        `Status: *🟢 HIGH PROBABILITY* (92% Catch Rate)\n\n` +
+        `🚆 *Train*: 32216 - Dankuni to Sealdah Local\n` +
+        `⏰ *Predicted Departure*: 06:34 AM\n` +
+        `🚗 *Est. Road Travel Time*: 5 mins (3.2 km)\n` +
+        `🚦 *Traffic Condition*: Moderate Urban Traffic (BT Road)\n` +
+        `🌧️ *Weather Intelligence*: Heavy Rain Slowdown & Wet Road Buffer (+3 min)\n` +
+        `🚶 *Station Entry Buffer*: 4 mins\n` +
+        `⏱️ *Total Time Required*: 9 mins\n` +
+        `⏳ *Time Available Before Departure*: 14 mins\n\n` +
+        `💡 *Recommendation*: High probability you can catch your train. Board at Platform 2, Coach C3/C9 (Lowest crowd density).`;
+    } else if (textLower === '2' || textLower.includes('status') || textLower.includes('live')) {
+      botReplyText =
+        `🚆 *RailIo Live Train Status*\n` +
+        `━━━━━━━━━━━━━━━━━━━━━━\n` +
+        `*Train 32216* - Dankuni - Sealdah Local\n` +
+        `Route: Dankuni ➔ Sealdah\n\n` +
+        `🟢 Status: *ON TIME* (Delay: +3 mins)\n` +
+        `📍 Current Section: *Dakshineswar (DAKE) approach*\n` +
+        `⏭️ Next Station: *Baranagar Road (BARN)*\n` +
+        `⚡ Live Speed: *48 km/h*\n` +
+        `🎯 Catch Probability: *92%*`;
     } else {
-      botReplyText = `🚆 *RailIo Passenger Assistant*\n\nChecked live signals for "${input}".\n\n• Train 32216 Dankuni - Sealdah Local is on schedule (+3m delay).\n• Coach C3/C9 has the lowest device density (~16 phone signals).\n• ML Model (train_delay_model.pkl) estimates ETA at Sealdah at 07:21.`;
+      botReplyText =
+        `🚆 *RailIo Passenger Assistant*\n\n` +
+        `Checked live signals for "${input}".\n\n` +
+        `• Train 32216 Dankuni - Sealdah Local is on schedule (+3m delay).\n` +
+        `• Coach C3/C9 has the lowest device density (~16 phone signals).\n` +
+        `• ML Model estimates ETA at Sealdah at 07:21.`;
     }
 
     const botMsg = {
       id: (Date.now() + 1).toString(),
       sender: 'bot',
       text: botReplyText,
-      time: '06:31',
+      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
     };
     setMessages((prev) => [...prev, userMsg, botMsg]);
     setInput('');
