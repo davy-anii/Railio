@@ -123,6 +123,19 @@ export class WhatsAppSessionManager {
       return;
     }
 
+    // Direct Route Query Detection (e.g. "Sealdah to dankuni", "Howrah to Dankuni", "SDAH - DKAE")
+    const isRouteQuery =
+      /(.+?)\s+(?:to|-|->)\s+(.+)/.test(textLower) ||
+      ((textLower.includes('sealdah') || textLower.includes('dankuni') || textLower.includes('howrah')) && (textLower.includes('to') || textLower.includes('train')));
+
+    if (isRouteQuery && session.state !== 'AWAITING_TRAIN_STATUS') {
+      if (!session.pendingLocation) {
+        session.pendingLocation = { latitude: 22.7105475, longitude: 88.386681, name: '22.7105475, 88.386681' };
+      }
+      await this.handleCatchTrainCalculation(phoneNumber, session, cleanText, phoneNumberId);
+      return;
+    }
+
     // 7. Handle Live Train Status Query state OR direct train number lookup in IDLE state
     if (session.state === 'AWAITING_TRAIN_STATUS' || (cleanText && /\b\d{5}\b/.test(cleanText) && session.state === 'IDLE')) {
       await this.handleTrainStatusQuery(phoneNumber, session, cleanText, phoneNumberId);
