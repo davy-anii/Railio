@@ -47,71 +47,72 @@ export const handleIncomingWebhook = async (req: Request, res: Response): Promis
   try {
     const body = req.body;
     const objType = body?.object || 'unknown';
-    const fieldName = body?.entry?.[0]?.changes?.[0]?.field || 'messages';
-    console.log(`[WA-INBOUND] PAYLOAD_RECEIVED request_id=${reqId} object=${objType} field=${fieldName}`);
+    console.log(`[WA-INBOUND] PAYLOAD_RECEIVED request_id=${reqId} object=${objType} body=${JSON.stringify(body).slice(0, 300)}`);
 
-    if (body?.object === 'whatsapp_business_account') {
-      const entry = body.entry?.[0];
-      const change = entry?.changes?.[0];
-      const value = change?.value;
-      const metadata = value?.metadata || {};
-      const incomingPhoneId = metadata.phone_number_id || process.env.WHATSAPP_PHONE_NUMBER_ID || '1282348971633521';
-      const message = value?.messages?.[0];
+    if (body?.object === 'whatsapp_business_account' || body?.entry) {
+      const entries = body.entry || [];
+      for (const entry of entries) {
+        const changes = entry?.changes || [];
+        for (const change of changes) {
+          const value = change?.value;
+          const metadata = value?.metadata || {};
+          const incomingPhoneId = metadata.phone_number_id || process.env.WHATSAPP_PHONE_NUMBER_ID || '1282348971633521';
+          const messages = value?.messages || [];
 
-      if (message) {
-        const fromNumber = message.from;
-        const messageType = message.type;
-        const msgId = message.id;
+          for (const message of messages) {
+            const fromNumber = message.from;
+            const messageType = message.type;
+            const msgId = message.id;
 
-        let messageText: string | undefined;
-        let buttonReplyId: string | undefined;
-        let locationPayload: UserLocation | undefined;
+            let messageText: string | undefined;
+            let buttonReplyId: string | undefined;
+            let locationPayload: UserLocation | undefined;
 
-        if (messageType === 'text') {
-          messageText = message.text?.body;
-        } else if (messageType === 'interactive') {
-          const interactive = message.interactive;
-          if (interactive?.type === 'button_reply') {
-            buttonReplyId = interactive.button_reply?.id;
-            messageText = interactive.button_reply?.title;
+            if (messageType === 'text') {
+              messageText = message.text?.body;
+            } else if (messageType === 'interactive') {
+              const interactive = message.interactive;
+              if (interactive?.type === 'button_reply') {
+                buttonReplyId = interactive.button_reply?.id;
+                messageText = interactive.button_reply?.title;
+              }
+            } else if (messageType === 'location') {
+              const loc = message.location;
+              if (loc) {
+                locationPayload = {
+                  latitude: loc.latitude,
+                  longitude: loc.longitude,
+                  name: loc.name,
+                  address: loc.address,
+                };
+                messageText = loc.name || `Location (${loc.latitude}, ${loc.longitude})`;
+              }
+            }
+
+            const cleanFrom = String(fromNumber || '').replace(/[^0-9]/g, '');
+            const maskedFrom = `${cleanFrom.slice(0, 3)}****${cleanFrom.slice(-4)}`;
+            const textLen = (messageText || '').length;
+
+            console.log(`[WA-INBOUND] MESSAGE_PARSED request_id=${reqId} message_id=${msgId} from=${maskedFrom} text="${messageText}" phone_id=${incomingPhoneId}`);
+
+            // Process in background session manager asynchronously
+            await whatsappSessionManager.processIncomingMessage(fromNumber, messageText, buttonReplyId, locationPayload, incomingPhoneId);
           }
-        } else if (messageType === 'location') {
-          const loc = message.location;
-          if (loc) {
-            locationPayload = {
-              latitude: loc.latitude,
-              longitude: loc.longitude,
-              name: loc.name,
-              address: loc.address,
-            };
-            messageText = loc.name || `Location (${loc.latitude}, ${loc.longitude})`;
+
+          const statusEvents = value?.statuses || [];
+          for (const statusEvent of statusEvents) {
+            const wamid = statusEvent.id || '';
+            const st = statusEvent.status || 'unknown';
+            const recipRaw = statusEvent.recipient_id || '';
+            const maskedRecip = `${recipRaw.slice(0, 3)}****${recipRaw.slice(-4)}`;
+            const ts = statusEvent.timestamp || new Date().toISOString();
+
+            console.log(`[WHATSAPP_STATUS] message_id=${wamid} status=${st} recipient=${maskedRecip} timestamp=${ts}`);
+            if (st === 'failed' || statusEvent.errors) {
+              const err = statusEvent.errors?.[0] || {};
+              console.error(`[WHATSAPP_STATUS_FAILED] message_id=${wamid} status=${st} error_code=${err.code || 'UNKNOWN'} error_title="${err.title || 'UNKNOWN'}" error_message="${err.message || 'UNKNOWN'}"`);
+            }
           }
-        }
-
-        const cleanFrom = String(fromNumber || '').replace(/[^0-9]/g, '');
-        const maskedFrom = `${cleanFrom.slice(0, 3)}****${cleanFrom.slice(-4)}`;
-        const textLen = (messageText || '').length;
-
-        console.log(`[WA-INBOUND] MESSAGE_PARSED request_id=${reqId} message_id=${msgId} from=${maskedFrom} text_length=${textLen}`);
-
-        // Process in background session manager asynchronously
-        await whatsappSessionManager.processIncomingMessage(fromNumber, messageText, buttonReplyId, locationPayload, incomingPhoneId);
-      } else {
-        const statusEvent = value?.statuses?.[0];
-        if (statusEvent) {
-          const wamid = statusEvent.id || '';
-          const st = statusEvent.status || 'unknown';
-          const recipRaw = statusEvent.recipient_id || '';
-          const maskedRecip = `${recipRaw.slice(0, 3)}****${recipRaw.slice(-4)}`;
-          const ts = statusEvent.timestamp || new Date().toISOString();
-
-          console.log(`[WHATSAPP_STATUS] message_id=${wamid} status=${st} recipient=${maskedRecip} timestamp=${ts}`);
-          if (st === 'failed' || statusEvent.errors) {
-            const err = statusEvent.errors?.[0] || {};
-            console.error(`[WHATSAPP_STATUS_FAILED] message_id=${wamid} status=${st} error_code=${err.code || 'UNKNOWN'} error_title="${err.title || 'UNKNOWN'}" error_message="${err.message || 'UNKNOWN'}"`);
-          }
-        } else {
-          console.log('[WA-INBOUND] NON_MESSAGE_EVENT');
         }
       }
     }
