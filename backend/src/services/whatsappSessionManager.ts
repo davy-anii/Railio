@@ -50,7 +50,7 @@ export class WhatsAppSessionManager {
 
     console.log(`[WA] MESSAGE_PARSED user=${phoneNumber} state=${session.state} text="${cleanText}" phone_number_id=${phoneNumberId}`);
 
-    // 1. Handle Quick Reply Buttons or direct trigger commands for "Catch Train"
+    // 1. Step 1: Handle Quick Reply Buttons or direct trigger commands for "Can I Catch My Train?"
     if (
       buttonReplyId === 'btn_catch_train' ||
       textLower === 'catch' ||
@@ -102,7 +102,7 @@ export class WhatsAppSessionManager {
       return;
     }
 
-    // 6. Step 3 in Catch Train flow: If state is AWAITING_TRAIN_OR_DESTINATION -> Calculate Catch Probability using saved GPS location
+    // 6. Step 3 in Catch Train flow: If state is AWAITING_TRAIN_OR_DESTINATION -> Calculate Catch Probability using saved GPS location & Source/Destination
     if (session.state === 'AWAITING_TRAIN_OR_DESTINATION') {
       await this.handleCatchTrainCalculation(phoneNumber, session, cleanText, phoneNumberId);
       return;
@@ -142,7 +142,7 @@ export class WhatsAppSessionManager {
   }
 
   /**
-   * Step 1: Prompt user for location for Catch Train query (DO NOT give prediction yet!)
+   * Step 1: Prompt user ONLY for location for Catch Train query (DO NOT ask source/destination yet! DO NOT predict yet!)
    */
   private async promptCatchTrainLocation(phoneNumber: string, session: UserSession, targetPhoneId?: string): Promise<void> {
     session.state = 'AWAITING_LOCATION';
@@ -155,7 +155,7 @@ export class WhatsAppSessionManager {
   }
 
   /**
-   * Step 2: Location recorded -> prompt user for train number, name, source/destination station (DO NOT give prediction yet!)
+   * Step 2: Location recorded -> prompt user for Source Station and Destination Station (DO NOT predict yet!)
    */
   private async handleLocationRecorded(
     phoneNumber: string,
@@ -198,14 +198,14 @@ export class WhatsAppSessionManager {
     const text =
       `📍 *Location recorded*: ${locName}\n\n` +
       `🚆 Which train are you planning to catch or what is your destination?\n` +
-      `Please enter the *Train Number*, Name, or Destination:\n` +
-      `_(e.g., 12301, Howrah Rajdhani, or Sealdah)_`;
+      `Please enter your *Source Station* and *Destination Station* (or Train Number):\n` +
+      `_(e.g., Sealdah to Dankuni, Howrah to Bardhaman, or 32215)_`;
 
     await whatsappService.sendMessage(phoneNumber, text, targetPhoneId);
   }
 
   /**
-   * Step 3: Calculate Catch Probability using recorded GPS location and train/destination input
+   * Step 3: Calculate Catch Probability using recorded GPS location, Source/Destination station, traffic, weather, and next train options
    */
   private async handleCatchTrainCalculation(
     phoneNumber: string,
@@ -223,12 +223,23 @@ export class WhatsAppSessionManager {
 
     let targetTrain: any = null;
 
-    // 1. Try search by 5-digit train number
+    // 1. Search by 5-digit train number
     if (trainMatch) {
       targetTrain = db.getTrain(trainMatch[0]);
     }
 
-    // 2. Try search by destination or train name
+    // 2. Parse Source and Destination if format is "Source to Destination" or "Source - Destination"
+    const toMatch = textLower.match(/(.+?)\s+(?:to|-|->)\s+(.+)/);
+    if (!targetTrain && toMatch) {
+      const srcQuery = toMatch[1].trim();
+      const destQuery = toMatch[2].trim();
+      const searched = db.searchTrains(srcQuery, destQuery);
+      if (searched && searched.length > 0) {
+        targetTrain = searched[0];
+      }
+    }
+
+    // 3. Try search by single station name / destination or train name
     if (!targetTrain && textLower) {
       const searched = db.searchTrains('SDAH', textLower) || db.searchTrains(textLower, 'SDAH') || db.searchTrains('HWH', textLower);
       if (searched && searched.length > 0) {
@@ -242,12 +253,12 @@ export class WhatsAppSessionManager {
       }
     }
 
-    // 3. Fallback train if not found
+    // 4. Fallback train if not found
     if (!targetTrain) {
       targetTrain = db.getTrain('32215') || db.getTrain('12301') || db.trains[0];
     }
 
-    // 4. Calculate user's distance to nearest station / boarding stop
+    // 5. Calculate user's distance to nearest station / boarding stop
     const userLat = userLoc.latitude || 22.7105475;
     const userLng = userLoc.longitude || 88.386681;
 
@@ -275,7 +286,7 @@ export class WhatsAppSessionManager {
       minDistanceKm = Math.sqrt(dLat * dLat + dLng * dLng) * 111 * 1.3;
     }
 
-    // 5. Road travel time & buffer calculation
+    // 6. Road travel time & buffer calculation
     const roadTravelMins = (userLat === 22.7105475 && userLng === 88.386681)
       ? 12
       : Math.max(5, Math.round((minDistanceKm / 35) * 60 * 1.4));
@@ -328,7 +339,7 @@ export class WhatsAppSessionManager {
     const depTimeStr = targetTrain.departureTime || '05:42';
     const delayStr = `+${delayMins} min delay`;
 
-    // Alternative Trains Lookup
+    // Alternative Trains / Next Train Lookup
     let altTrainsStr = '';
     const upcoming = db.getUpcomingSuburbanTrains(targetTrain.source || 'DAKE', targetTrain.destination || 'SDAH');
     const filteredAlts = (upcoming || []).filter(t => t.trainNumber !== targetTrain.trainNumber);
