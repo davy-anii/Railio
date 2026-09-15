@@ -558,8 +558,8 @@ from app.whatsapp.status_tracker import whatsapp_status_tracker
 logger = logging.getLogger(__name__)
 
 def get_whatsapp_config() -> dict:
-    phone_number_id = os.getenv("WHATSAPP_WORKER_PHONE_NUMBER_ID", os.getenv("WHATSAPP_PHONE_NUMBER_ID", "1282348971633521"))
-    access_token = os.getenv("WHATSAPP_WORKER_ACCESS_TOKEN", os.getenv("WHATSAPP_ACCESS_TOKEN", os.getenv("META_WHATSAPP_TOKEN", "")))
+    phone_number_id = os.getenv("WHATSAPP_PHONE_NUMBER_ID", os.getenv("WHATSAPP_WORKER_PHONE_NUMBER_ID", "1362878316903671"))
+    access_token = os.getenv("WHATSAPP_ACCESS_TOKEN", os.getenv("META_WHATSAPP_TOKEN", os.getenv("WHATSAPP_WORKER_ACCESS_TOKEN", "")))
     verify_token = os.getenv("WHATSAPP_VERIFY_TOKEN", "railsathi_whatsapp_verify_token_2026")
     app_secret = os.getenv("META_APP_SECRET", "")
     return {

@@ -7,11 +7,11 @@ export interface WhatsAppButtonOption {
 
 export class WhatsAppService {
   private getCredentials(targetPhoneId?: string): { phoneNumberId: string; accessToken: string } {
-    const workerPhoneId = process.env.WHATSAPP_WORKER_PHONE_NUMBER_ID || '1282348971633521';
     const primaryPhoneId = process.env.WHATSAPP_PHONE_NUMBER_ID || '1362878316903671';
+    const workerPhoneId = process.env.WHATSAPP_WORKER_PHONE_NUMBER_ID || '1282348971633521';
 
-    const workerToken = process.env.WHATSAPP_WORKER_ACCESS_TOKEN || '';
     const primaryToken = process.env.WHATSAPP_ACCESS_TOKEN || process.env.META_WHATSAPP_TOKEN || '';
+    const workerToken = process.env.WHATSAPP_WORKER_ACCESS_TOKEN || '';
 
     if (targetPhoneId) {
       const cleaned = String(targetPhoneId).trim();
@@ -24,8 +24,8 @@ export class WhatsAppService {
       }
     }
 
-    const phoneNumberId = workerPhoneId || primaryPhoneId;
-    const accessToken = workerToken || primaryToken;
+    const phoneNumberId = primaryPhoneId || workerPhoneId;
+    const accessToken = primaryToken || workerToken;
     return { phoneNumberId, accessToken };
   }
 

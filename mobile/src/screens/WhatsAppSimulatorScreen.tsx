@@ -14,18 +14,27 @@ export const WhatsAppSimulatorScreen: React.FC = () => {
     {
       id: '2',
       sender: 'bot',
-      text: '🚆 *RailIo WhatsApp Intelligence*\n\n*Train 32216 (Dankuni - Sealdah Local)*\n\n• Scheduled Departure: *06:34*\n• Predicted Arrival at Sealdah: *07:21 (+3 min)*\n• Road Travel Time: *5 min*\n• Traffic: *Moderate (BT Road)*\n• Station Entry Buffer: *4 min*\n• Total Required: *9 min*\n• Available Time: *14 min*\n\n🟢 *92% Probability*: High chance of catching your train.\n_Recommendation: Board at Platform 2, Coach C3 (Lowest crowd density)._',
+      text: '🚆 *RailIo Passenger WhatsApp Intelligence*\n\n🎯 *"Can I Catch My Train?" AI Calculator*\n\n*Train 32216 (Dankuni - Sealdah Local)*\n\n• Scheduled Departure: *06:34*\n• Predicted Arrival at Sealdah: *07:21 (+3 min)*\n• Road Travel Time: *5 min*\n• Traffic: *Moderate (BT Road)*\n• Station Entry Buffer: *4 min*\n• Total Required: *9 min*\n• Available Time: *14 min*\n\n🟢 *92% Catch Probability*: High chance of catching your train.\n_Recommendation: Board at Platform 2, Coach C3 (Lowest crowd density)._',
       time: '06:30',
     },
   ]);
 
   const handleSend = () => {
     if (!input.trim()) return;
+    const textLower = input.toLowerCase();
     const userMsg = { id: Date.now().toString(), sender: 'user', text: input, time: '06:31' };
+    
+    let botReplyText = '';
+    if (textLower.includes('catch') || textLower.includes('train')) {
+      botReplyText = `🚆 *RailIo Passenger AI Assistant*\n\n🎯 *"Can I Catch My Train?" Result*\n\n• Train 32216 (Dankuni - Sealdah Local) live status checked.\n• ML Model (train_delay_model.pkl) predicts 92% Catch Probability.\n• Est. Road Travel Time: 5 mins via BT Road.\n• Coach C3/C9 has the lowest device density (~16 phone signals).\n• Recommended Platform: Platform 2.`;
+    } else {
+      botReplyText = `🚆 *RailIo Passenger Assistant*\n\nChecked live signals for "${input}".\n\n• Train 32216 Dankuni - Sealdah Local is on schedule (+3m delay).\n• Coach C3/C9 has the lowest device density (~16 phone signals).\n• ML Model (train_delay_model.pkl) estimates ETA at Sealdah at 07:21.`;
+    }
+
     const botMsg = {
       id: (Date.now() + 1).toString(),
       sender: 'bot',
-      text: `🚆 *RailIo Assistant*\n\nChecked live signals for "${input}".\n\n• Train 32216 Dankuni - Sealdah Local is on schedule (delay +3m).\n• Coach C3/C9 has the lowest device density (~16 phone signals).\n• ML Model (train_delay_model.pkl) estimates ETA at Sealdah at 07:21.`,
+      text: botReplyText,
       time: '06:31',
     };
     setMessages((prev) => [...prev, userMsg, botMsg]);
@@ -41,8 +50,8 @@ export const WhatsAppSimulatorScreen: React.FC = () => {
           <Text style={{ fontSize: 18 }}>🚆</Text>
         </View>
         <View style={{ flex: 1 }}>
-          <Text style={styles.headerName}>RailIo AI Official</Text>
-          <Text style={styles.headerStatus}>Verified Indian Railways Sathi Bot</Text>
+          <Text style={styles.headerName}>RailIo AI Passenger Sathi</Text>
+          <Text style={styles.headerStatus}>Verified Indian Railways Passenger Bot</Text>
         </View>
       </View>
 

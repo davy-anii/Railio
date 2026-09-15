@@ -46,7 +46,7 @@ class WhatsAppSender:
             else:
                 return target_str, primary_token or worker_token
 
-        phone_number_id = worker_phone_id or primary_phone_id
+        phone_number_id = primary_phone_id or worker_phone_id
         access_token = worker_token or primary_token
         return phone_number_id, access_token
 
